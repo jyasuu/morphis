@@ -1,0 +1,99 @@
+database:
+  url: "postgres://postgres:postgres@localhost:5432/morphis"
+  max_connections: 10
+
+server:
+  host: "0.0.0.0"
+  port: 4000
+
+tables:
+  materials:
+    table: materials
+    primary_key: [mat_no]
+    columns:
+      - name: mat_no
+        type: string
+        nullable: false
+        unique: true
+      - name: name
+        type: string
+        nullable: false
+      - name: status
+        type: string
+        nullable: false
+        default: "'active'"
+
+  sizes:
+    table: sizes
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+      - name: size_code
+        type: string
+        nullable: false
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: name
+        type: string
+        nullable: false
+
+  colorways:
+    table: colorways
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+      - name: colorway_code
+        type: string
+        nullable: false
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: name
+        type: string
+        nullable: false
+      - name: hex
+        type: string
+        nullable: true
+
+  material_features:
+    table: material_features
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: feature_name
+        type: string
+        nullable: false
+      - name: description
+        type: string
+        nullable: true
+
+  feature_attributes:
+    table: feature_attributes
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+      - name: feature_id
+        type: int
+        nullable: false
+      - name: attr_name
+        type: string
+        nullable: false
+      - name: attr_value
+        type: string
+        nullable: false
