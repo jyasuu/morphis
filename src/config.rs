@@ -6,6 +6,40 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub tables: HashMap<String, TableConfig>,
+    #[serde(default)]
+    pub elasticsearch: Option<ElasticsearchConfig>,
+    #[serde(default)]
+    pub search_indexes: Vec<SearchIndexConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ElasticsearchConfig {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchIndexConfig {
+    #[allow(dead_code)]
+    pub name: String,
+    pub index: String,
+    #[serde(rename = "type")]
+    pub graphql_type: String,
+    pub searchable_fields: Vec<String>,
+    #[serde(default)]
+    pub join_fields: Vec<SearchJoinConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchJoinConfig {
+    #[allow(dead_code)]
+    pub name: String,
+    pub index_field: String,
+    pub table: String,
+    pub local_field: String,
+    pub foreign_field: String,
+    pub searchable_fields: Vec<String>,
+    #[serde(default)]
+    pub join_fields: Vec<SearchJoinConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

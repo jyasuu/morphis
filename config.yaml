@@ -2,6 +2,9 @@ database:
   url: "postgres://postgres:postgres@localhost:5432/morphis"
   max_connections: 10
 
+elasticsearch:
+  url: "http://localhost:9200"
+
 server:
   host: "0.0.0.0"
   port: 4000
@@ -142,3 +145,30 @@ tables:
         table: material_features
         local_field: feature_id
         foreign_field: id
+
+search_indexes:
+  - name: materials_search
+    index: materials
+    type: materials
+    searchable_fields:
+      - mat_no
+      - name
+      - status
+    join_fields:
+      - name: features
+        index_field: material_features
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
+        searchable_fields:
+          - feature_name
+          - description
+        join_fields:
+          - name: attributes
+            index_field: feature_attributes
+            table: feature_attributes
+            local_field: id
+            foreign_field: feature_id
+            searchable_fields:
+              - attr_name
+              - attr_value
