@@ -23,16 +23,21 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     schema_builder = schema_builder.data(ctx);
 
     let mut table_objects = Vec::new();
+    let mut table_type_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (name, table_config) in &config.tables {
+        table_type_map.insert(table_config.table.clone(), name.clone());
+    }
 
     for (name, table_config) in &config.tables {
-        let input = build_create_input(name, table_config);
-        schema_builder = schema_builder.register(input);
-        let update_input = build_update_input(name, table_config);
-        schema_builder = schema_builder.register(update_input);
-        let filter = build_filter_input(name, table_config);
+        let name_caps = capitalize_first(name);
+        let filter = build_filter_input(&name_caps, table_config);
         schema_builder = schema_builder.register(filter);
+        let input = build_create_input(&name_caps, table_config);
+        schema_builder = schema_builder.register(input);
+        let update_input = build_update_input(&name_caps, table_config);
+        schema_builder = schema_builder.register(update_input);
 
-        let obj = build_table_object(name, table_config);
+        let obj = build_table_object(name, table_config, &config.tables, &table_type_map);
         schema_builder = schema_builder.register(obj);
         table_objects.push((name.clone(), table_config.table.clone(), table_config.clone()));
     }
@@ -46,7 +51,12 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     schema_builder.finish().unwrap()
 }
 
-fn build_table_object(_name: &str, table_config: &TableConfig) -> Object {
+fn build_table_object(
+    _name: &str,
+    table_config: &TableConfig,
+    all_tables: &std::collections::HashMap<String, TableConfig>,
+    table_type_map: &std::collections::HashMap<String, String>,
+) -> Object {
     let mut obj = Object::new(&table_config.table);
     for col in &table_config.columns {
         let field_type = match col.col_type.to_string().as_str() {
@@ -75,6 +85,105 @@ fn build_table_object(_name: &str, table_config: &TableConfig) -> Object {
                 })
             },
         ));
+    }
+
+    for rel in &table_config.relations {
+        let Some(rel_cfg) = all_tables.get(
+            table_type_map.get(&rel.table).map(String::as_str).unwrap_or("")
+        ) else { continue; };
+        let rel_table = rel.table.clone();
+        let local_field = rel.local_field.clone();
+        let foreign_field = rel.foreign_field.clone();
+        let related_pk = rel_cfg.primary_key[0].clone();
+        let foreign_int = rel_cfg.columns.iter().any(|c| c.name == foreign_field && matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64));
+        let pk_int = rel_cfg.columns.iter().any(|c| c.name == related_pk && matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64));
+        let return_type_name = table_type_map.get(&rel.table).cloned().unwrap_or_default();
+
+        match rel.rel_type {
+            crate::config::RelationType::HasMany => {
+                obj = obj.field(Field::new(rel.name.clone(), TypeRef::named_nn_list_nn(&return_type_name), move |ctx| {
+                    let local_field = local_field.clone();
+                    let foreign_field = foreign_field.clone();
+                    let rel_table = rel_table.clone();
+                    let foreign_int = foreign_int;
+                    FieldFuture::new(async move {
+                        let parent = ctx.parent_value.as_value()
+                            .ok_or_else(|| async_graphql::Error::new("not a value"))?;
+                        let local_val = match parent {
+                            Value::Object(map) => map.get(&Name::new(&local_field)).cloned().unwrap_or(Value::Null),
+                            _ => Value::Null,
+                        };
+                        let val_str = gql_value_to_sql_string(&local_val);
+                        let cast = if foreign_int { "::int" } else { "" };
+                        let sql = format!(
+                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1{}) t",
+                            rel_table, foreign_field, cast
+                        );
+                        let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
+                        let rows = fetch_many(&app_ctx.pool, &sql, &[val_str]).await?;
+                        let items: Vec<FieldValue> = rows
+                            .into_iter()
+                            .map(|r| FieldValue::value(gql_val(r)))
+                            .collect();
+                        Ok(Some(FieldValue::list(items)))
+                    })
+                }));
+            }
+            crate::config::RelationType::HasOne => {
+                obj = obj.field(Field::new(rel.name.clone(), TypeRef::named(&return_type_name), move |ctx| {
+                    let local_field = local_field.clone();
+                    let foreign_field = foreign_field.clone();
+                    let rel_table = rel_table.clone();
+                    let foreign_int = foreign_int;
+                    FieldFuture::new(async move {
+                        let parent = ctx.parent_value.as_value()
+                            .ok_or_else(|| async_graphql::Error::new("not a value"))?;
+                        let local_val = match parent {
+                            Value::Object(map) => map.get(&Name::new(&local_field)).cloned().unwrap_or(Value::Null),
+                            _ => Value::Null,
+                        };
+                        let val_str = gql_value_to_sql_string(&local_val);
+                        let cast = if foreign_int { "::int" } else { "" };
+                        let sql = format!(
+                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t",
+                            rel_table, foreign_field, cast
+                        );
+                        let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
+                        match fetch_one(&app_ctx.pool, &sql, &[val_str]).await? {
+                            Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
+                            None => Ok(FieldValue::NONE),
+                        }
+                    })
+                }));
+            }
+            crate::config::RelationType::BelongsTo => {
+                obj = obj.field(Field::new(rel.name.clone(), TypeRef::named(&return_type_name), move |ctx| {
+                    let local_field = local_field.clone();
+                    let rel_table = rel_table.clone();
+                    let related_pk = related_pk.clone();
+                    let pk_int = pk_int;
+                    FieldFuture::new(async move {
+                        let parent = ctx.parent_value.as_value()
+                            .ok_or_else(|| async_graphql::Error::new("not a value"))?;
+                        let local_val = match parent {
+                            Value::Object(map) => map.get(&Name::new(&local_field)).cloned().unwrap_or(Value::Null),
+                            _ => Value::Null,
+                        };
+                        let val_str = gql_value_to_sql_string(&local_val);
+                        let cast = if pk_int { "::int" } else { "" };
+                        let sql = format!(
+                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t",
+                            rel_table, related_pk, cast
+                        );
+                        let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
+                        match fetch_one(&app_ctx.pool, &sql, &[val_str]).await? {
+                            Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
+                            None => Ok(FieldValue::NONE),
+                        }
+                    })
+                }));
+            }
+        }
     }
     obj
 }
@@ -153,12 +262,35 @@ fn gql_val(v: serde_json::Value) -> Value {
     json_to_gql(v)
 }
 
+fn capitalize_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().to_string() + c.as_str(),
+    }
+}
+
+fn gql_value_to_sql_string(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        Value::Number(n) => n.to_string(),
+        Value::Boolean(b) => b.to_string(),
+        _ => String::new(),
+    }
+}
+
 fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]) -> Object {
     let mut query = Object::new("Query");
 
     for (name, table_name, table_config) in tables {
         let pk = table_config.primary_key[0].clone();
         let tn = table_name.clone();
+
+        let is_pk_int = table_config.columns.iter().any(|c| {
+            table_config.primary_key.contains(&c.name)
+                && matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64)
+        });
+        let arg_type = if is_pk_int { TypeRef::named_nn(TypeRef::INT) } else { TypeRef::named_nn(TypeRef::STRING) };
 
         let tn_first = tn.clone();
         let tn_first_closure = tn.clone();
@@ -169,17 +301,20 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
                 move |ctx| {
                     let pk = pk.clone();
                     let table_name = tn_first_closure.clone();
+                    let is_pk_int = is_pk_int;
 
                     FieldFuture::new(async move {
-                        let id = ctx
-                            .args
-                            .get("id")
-                            .and_then(|v| v.string().ok().map(String::from));
+                        let id = if is_pk_int {
+                            ctx.args.get("id").and_then(|v| v.i64().ok()).map(|n| n.to_string())
+                        } else {
+                            ctx.args.get("id").and_then(|v| v.string().ok()).map(String::from)
+                        };
                         let id =
                             id.ok_or_else(|| async_graphql::Error::new("id is required"))?;
 
+                        let cast = if is_pk_int { "::int" } else { "" };
                         let sql =
-                            format!("SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1 LIMIT 1) t", table_name, pk);
+                            format!("SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t", table_name, pk, cast);
                         let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
 
                         match fetch_one(&app_ctx.pool, &sql, &[id]).await? {
@@ -189,7 +324,7 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
                     })
                 },
             )
-            .argument(InputValue::new("id", TypeRef::named_nn(TypeRef::STRING))),
+            .argument(InputValue::new("id", arg_type)),
         );
 
         let list_name = format!("{}List", name);
@@ -246,7 +381,7 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
             )
             .argument(InputValue::new(
                 "filter",
-                TypeRef::named(format!("{}FilterInput", name)),
+                TypeRef::named(format!("{}FilterInput", capitalize_first(name))),
             ))
             .argument(InputValue::new("order_by", TypeRef::named(TypeRef::STRING)))
             .argument(InputValue::new("limit", TypeRef::named(TypeRef::INT)))
@@ -267,9 +402,16 @@ fn build_mutation_object(
         let create_table_name = table_name.clone();
         let create_table_config = table_config.clone();
 
+        let name_caps = capitalize_first(name);
+        let is_pk_int = table_config.columns.iter().any(|c| {
+            table_config.primary_key.contains(&c.name)
+                && matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64)
+        });
+        let pk_arg_type = if is_pk_int { TypeRef::named_nn(TypeRef::INT) } else { TypeRef::named_nn(TypeRef::STRING) };
+
         mutation = mutation.field(
             Field::new(
-                format!("create{}", name),
+                format!("create{}", name_caps),
                 TypeRef::named_nn(table_name.clone()),
                 move |ctx| {
                     let table_config = create_table_config.clone();
@@ -313,7 +455,7 @@ fn build_mutation_object(
             )
             .argument(InputValue::new(
                 "input",
-                TypeRef::named_nn(format!("Create{}Input", name)),
+                TypeRef::named_nn(format!("Create{}Input", name_caps)),
             )),
         );
 
@@ -323,19 +465,21 @@ fn build_mutation_object(
 
         mutation = mutation.field(
             Field::new(
-                format!("update{}", name),
+                format!("update{}", name_caps),
                 TypeRef::named_nn(table_name.clone()),
                 move |ctx| {
                     let table_config = update_table_config.clone();
                     let table_name = update_table_name.clone();
                     let pk = update_pk.clone();
+                    let is_pk_int = is_pk_int;
 
                     FieldFuture::new(async move {
-                        let id = ctx
-                            .args
-                            .get("id")
-                            .and_then(|v| v.string().ok().map(String::from))
-                            .ok_or_else(|| async_graphql::Error::new("id is required"))?;
+                        let id = if is_pk_int {
+                            ctx.args.get("id").and_then(|v| v.i64().ok()).map(|n| n.to_string())
+                        } else {
+                            ctx.args.get("id").and_then(|v| v.string().ok()).map(String::from)
+                        };
+                        let id = id.ok_or_else(|| async_graphql::Error::new("id is required"))?;
                         let input = ctx
                             .args
                             .get("input")
@@ -354,12 +498,14 @@ fn build_mutation_object(
                         }
 
                         params.push(id);
+                        let cast = if is_pk_int { "::int" } else { "" };
                         let sql = format!(
-                            "WITH upd AS (UPDATE {} SET {} WHERE {} = ${} RETURNING *) SELECT row_to_json(upd)::text FROM upd",
+                            "WITH upd AS (UPDATE {} SET {} WHERE {} = ${}{} RETURNING *) SELECT row_to_json(upd)::text FROM upd",
                             table_name,
                             set_clauses.join(", "),
                             pk,
                             params.len(),
+                            cast,
                         );
 
                         let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
@@ -371,10 +517,10 @@ fn build_mutation_object(
                     })
                 },
             )
-            .argument(InputValue::new("id", TypeRef::named_nn(TypeRef::STRING)))
+            .argument(InputValue::new("id", pk_arg_type.clone()))
             .argument(InputValue::new(
                 "input",
-                TypeRef::named_nn(format!("Update{}Input", name)),
+                TypeRef::named_nn(format!("Update{}Input", name_caps)),
             )),
         );
 
@@ -383,21 +529,24 @@ fn build_mutation_object(
 
         mutation = mutation.field(
             Field::new(
-                format!("delete{}", name),
+                format!("delete{}", name_caps),
                 TypeRef::named_nn(table_name.clone()),
                 move |ctx| {
                     let table_name = delete_table_name.clone();
                     let pk = delete_pk.clone();
+                    let is_pk_int = is_pk_int;
 
                     FieldFuture::new(async move {
-                        let id = ctx
-                            .args
-                            .get("id")
-                            .and_then(|v| v.string().ok().map(String::from))
-                            .ok_or_else(|| async_graphql::Error::new("id is required"))?;
+                        let id = if is_pk_int {
+                            ctx.args.get("id").and_then(|v| v.i64().ok()).map(|n| n.to_string())
+                        } else {
+                            ctx.args.get("id").and_then(|v| v.string().ok()).map(String::from)
+                        };
+                        let id = id.ok_or_else(|| async_graphql::Error::new("id is required"))?;
 
+                        let cast = if is_pk_int { "::int" } else { "" };
                         let sql =
-                            format!("WITH del AS (DELETE FROM {} WHERE {} = $1 RETURNING *) SELECT row_to_json(del)::text FROM del", table_name, pk);
+                            format!("WITH del AS (DELETE FROM {} WHERE {} = $1{} RETURNING *) SELECT row_to_json(del)::text FROM del", table_name, pk, cast);
 
                         let app_ctx = ctx.data::<Arc<AppContext>>().unwrap();
                         let row = fetch_one(&app_ctx.pool, &sql, &[id])
@@ -408,7 +557,7 @@ fn build_mutation_object(
                     })
                 },
             )
-            .argument(InputValue::new("id", TypeRef::named_nn(TypeRef::STRING))),
+            .argument(InputValue::new("id", pk_arg_type)),
         );
     }
 

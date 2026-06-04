@@ -1,6 +1,5 @@
 mod config;
 mod db;
-mod query;
 mod schema;
 
 use std::sync::Arc;

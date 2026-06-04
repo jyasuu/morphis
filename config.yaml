@@ -22,6 +22,22 @@ tables:
         type: string
         nullable: false
         default: "'active'"
+    relations:
+      - name: sizes
+        type: has_many
+        table: sizes
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: colorways
+        type: has_many
+        table: colorways
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: material_features
+        type: has_many
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
 
   sizes:
     table: sizes
@@ -40,6 +56,12 @@ tables:
       - name: name
         type: string
         nullable: false
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
 
   colorways:
     table: colorways
@@ -61,6 +83,12 @@ tables:
       - name: hex
         type: string
         nullable: true
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
 
   material_features:
     table: material_features
@@ -79,6 +107,17 @@ tables:
       - name: description
         type: string
         nullable: true
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: feature_attributes
+        type: has_many
+        table: feature_attributes
+        local_field: id
+        foreign_field: feature_id
 
   feature_attributes:
     table: feature_attributes
@@ -97,3 +136,9 @@ tables:
       - name: attr_value
         type: string
         nullable: false
+    relations:
+      - name: material_feature
+        type: belongs_to
+        table: material_features
+        local_field: feature_id
+        foreign_field: id

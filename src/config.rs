@@ -43,6 +43,7 @@ pub struct TableConfig {
     #[serde(default)]
     pub relations: Vec<RelationConfig>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub permissions: PermissionsConfig,
 }
 
@@ -54,8 +55,10 @@ pub struct ColumnConfig {
     #[serde(default)]
     pub nullable: bool,
     #[serde(default)]
+    #[allow(dead_code)]
     pub unique: bool,
     #[serde(default)]
+    #[allow(dead_code)]
     pub default: Option<String>,
 }
 
@@ -112,12 +115,16 @@ pub enum RelationType {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct PermissionsConfig {
     #[serde(default)]
+    #[allow(dead_code)]
     pub query: Vec<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub create: Vec<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub update: Vec<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub delete: Vec<String>,
 }
 
