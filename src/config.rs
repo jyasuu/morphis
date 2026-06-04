@@ -19,7 +19,6 @@ pub struct ElasticsearchConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchIndexConfig {
-    #[allow(dead_code)]
     pub name: String,
     pub index: String,
     #[serde(rename = "type")]
@@ -31,7 +30,6 @@ pub struct SearchIndexConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchJoinConfig {
-    #[allow(dead_code)]
     pub name: String,
     pub index_field: String,
     pub table: String,
@@ -76,9 +74,6 @@ pub struct TableConfig {
     pub primary_key: Vec<String>,
     #[serde(default)]
     pub relations: Vec<RelationConfig>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub permissions: PermissionsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -88,12 +83,6 @@ pub struct ColumnConfig {
     pub col_type: ColumnType,
     #[serde(default)]
     pub nullable: bool,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub unique: bool,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub default: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -144,22 +133,6 @@ pub enum RelationType {
     HasMany,
     HasOne,
     BelongsTo,
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct PermissionsConfig {
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub query: Vec<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub create: Vec<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub update: Vec<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub delete: Vec<String>,
 }
 
 impl Config {

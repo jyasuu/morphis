@@ -33,6 +33,15 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     }
 
     for (name, table_config) in &config.tables {
+        if table_config.primary_key.is_empty() {
+            panic!("Table '{}' has no primary_key defined", name);
+        }
+        if table_config.primary_key.len() > 1 {
+            panic!(
+                "Table '{}' has composite primary key ({:?}); only single-column PKs are supported",
+                name, table_config.primary_key
+            );
+        }
         let name_caps = capitalize_first(name);
         let filter = build_filter_input(&name_caps, table_config);
         schema_builder = schema_builder.register(filter);
@@ -49,6 +58,7 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     let mut query = build_query_object(&config, &table_objects);
 
     for index_cfg in &config.search_indexes {
+        tracing::debug!("Registering search index: {}", index_cfg.name);
         let sf = index_cfg.searchable_fields.clone();
         let mut input_obj = InputObject::new(format!("{}SearchFilter", capitalize_first(&index_cfg.index)));
         for f in &sf {
@@ -217,7 +227,7 @@ async fn fetch_one(
     }
     match query.fetch_optional(pool).await {
         Ok(Some(row)) => {
-            let json_str: String = row.try_get(0).unwrap_or_default();
+            let json_str: String = row.try_get(0).map_err(|e| async_graphql::Error::new(e.to_string()))?;
             serde_json::from_str(&json_str)
                 .map(Some)
                 .map_err(|e| async_graphql::Error::new(e.to_string()))
@@ -238,7 +248,7 @@ async fn fetch_many(
     }
     match query.fetch_optional(pool).await {
         Ok(Some(row)) => {
-            let json_str: String = row.try_get(0).unwrap_or_default();
+            let json_str: String = row.try_get(0).map_err(|e| async_graphql::Error::new(e.to_string()))?;
             let val: serde_json::Value =
                 serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Array(vec![]));
             match val {
@@ -349,6 +359,7 @@ async fn es_search(
 fn collect_searchable_fields(cfg: &SearchIndexConfig) -> Vec<String> {
     let mut fields = cfg.searchable_fields.clone();
     for jf in &cfg.join_fields {
+        tracing::debug!("Collecting searchable fields for join: {}", jf.name);
         for f in &jf.searchable_fields {
             fields.push(format!("{}.{}", jf.index_field, f));
         }
@@ -370,13 +381,21 @@ fn build_es_filter(
         if let Ok(obj) = f.object() {
             for (key, val) in obj.iter() {
                 if val.is_null() { continue; }
+                let key_str = key.as_str();
                 if let Ok(s) = val.string() {
                     if !s.is_empty() {
-                        let key_str = key.as_str();
                         must.push(serde_json::json!({
                             "term": { key_str: s }
                         }));
                     }
+                } else if let Ok(n) = val.i64() {
+                    must.push(serde_json::json!({
+                        "term": { key_str: n }
+                    }));
+                } else if let Ok(n) = val.f64() {
+                    must.push(serde_json::json!({
+                        "term": { key_str: n }
+                    }));
                 }
             }
         }
@@ -527,6 +546,7 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
         let list_name = format!("{}List", name);
         let tn_list = tn.clone();
         let tn_list_closure = tn.clone();
+        let col_names: Vec<String> = table_config.columns.iter().map(|c| c.name.clone()).collect();
 
         query = query.field(
             Field::new(
@@ -534,6 +554,7 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
                 TypeRef::named_nn_list_nn(tn_list),
                 move |ctx| {
                     let table_name = tn_list_closure.clone();
+                    let col_names = col_names.clone();
 
                     FieldFuture::new(async move {
                         let filter_arg = ctx.args.get("filter");
@@ -556,7 +577,21 @@ fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]
                         }
 
                         if let Some(order) = order_by {
-                            sql.push_str(&format!(" ORDER BY {}", order));
+                            let sanitized: Vec<&str> = order
+                                .split(',')
+                                .filter_map(|seg| {
+                                    let seg = seg.trim();
+                                    let col = seg.split_whitespace().next().unwrap_or("");
+                                    if col_names.contains(&col.to_string()) {
+                                        Some(seg)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            if !sanitized.is_empty() {
+                                sql.push_str(&format!(" ORDER BY {}", sanitized.join(", ")));
+                            }
                         }
                         if let Some(l) = limit {
                             sql.push_str(&format!(" LIMIT {}", l));
