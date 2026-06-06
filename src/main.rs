@@ -4,12 +4,15 @@ mod schema;
 
 use std::sync::Arc;
 
-use async_graphql_axum::GraphQL;
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
-    routing::{any_service, get},
+    extract::Extension,
+    routing::get,
     Router,
 };
 use tower_http::cors::CorsLayer;
+
+use schema::Identity;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,10 +33,11 @@ async fn main() -> anyhow::Result<()> {
     let schema = schema::build_schema(config.clone(), pool).await;
 
     let app = Router::new()
-        .route("/graphql", any_service(GraphQL::new(schema)))
+        .route("/graphql", get(graphql_handler).post(graphql_handler))
         .route("/playground", get(graphql_playground))
         .route("/health", get(health))
-        .layer(CorsLayer::permissive());
+        .layer(CorsLayer::permissive())
+        .layer(Extension(schema));
 
     let addr = format!("{}:{}", config.server.host, config.server.port);
     tracing::info!("Morphis server starting on {}", addr);
@@ -42,6 +46,27 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn graphql_handler(
+    Extension(schema): Extension<async_graphql::dynamic::Schema>,
+    headers: axum::http::HeaderMap,
+    req: GraphQLRequest,
+) -> GraphQLResponse {
+    let identity = Identity::from_raw(
+        headers
+            .iter()
+            .filter_map(|(name, value)| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|v| (name.as_str().to_lowercase(), v.to_string()))
+            })
+            .collect(),
+    );
+    let mut request = req.into_inner();
+    request.data.insert(identity);
+    schema.execute(request).await.into()
 }
 
 async fn graphql_playground() -> axum::response::Html<&'static str> {

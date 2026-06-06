@@ -25,6 +25,19 @@ tables:
         type: string
         nullable: false
         default: "'active'"
+      - name: tenant_id
+        type: string
+        nullable: true
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+        auto_set: true
+      - type: subquery
+        from_header: X-User-ID
+        columns: [tenant_id]
+        match_columns: [tenant_id]
+        from_source: materials
+        user_column: tenant_id
     relations:
       - name: sizes
         type: has_many
@@ -149,6 +162,51 @@ tables:
         table: material_features
         local_field: feature_id
         foreign_field: id
+
+  user_permissions:
+    table: user_permissions
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: user_id
+        type: string
+        nullable: false
+      - name: tenant_id
+        type: string
+        nullable: false
+      - name: region
+        type: string
+        nullable: false
+
+  protected_data:
+    table: protected_data
+    primary_key: [id]
+    columns:
+      - name: id
+        type: string
+        nullable: false
+        unique: true
+      - name: name
+        type: string
+        nullable: false
+      - name: value
+        type: string
+        nullable: true
+      - name: region
+        type: string
+        nullable: true
+    row_filters:
+      - type: subquery
+        from_header: X-User-ID
+        columns: [region]
+        match_columns: [region]
+        from_source: user_permissions
+        user_column: user_id
+        cache_ttl_secs: 30
 
 search_indexes:
   - name: materials_search

@@ -9,7 +9,7 @@ use crate::config::{ColumnType, RelationType, TableConfig};
 
 use super::db;
 use super::util::{gql_val, gql_value_to_sql_string};
-use super::AppContext;
+use super::{apply_row_filters, AppContext, Identity};
 
 pub(crate) fn build_table_object(
     _name: &str,
@@ -59,6 +59,8 @@ pub(crate) fn build_table_object(
         let pk_int = rel_cfg.columns.iter().any(|c| c.name == related_pk && matches!(c.col_type, ColumnType::Int | ColumnType::Int64));
         let return_type_name = table_type_map.get(&rel.table).cloned().unwrap_or_default();
 
+        let rel_row_filters = rel_cfg.row_filters.clone();
+
         match rel.rel_type {
             RelationType::HasMany => {
                 obj = obj.field(Field::new(rel.name.clone(), TypeRef::named_nn_list_nn(&return_type_name), move |ctx| {
@@ -66,6 +68,7 @@ pub(crate) fn build_table_object(
                     let foreign_field = foreign_field.clone();
                     let rel_table = rel_table.clone();
                     let foreign_int = foreign_int;
+                    let row_filters = rel_row_filters.clone();
                     FieldFuture::new(async move {
                         let parent = ctx.parent_value.as_value()
                             .ok_or_else(|| async_graphql::Error::new("not a value"))?;
@@ -75,12 +78,17 @@ pub(crate) fn build_table_object(
                         };
                         let val_str = gql_value_to_sql_string(&local_val);
                         let cast = if foreign_int { "::int" } else { "" };
-                        let sql = format!(
-                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1{}) t",
+                        let mut sql = format!(
+                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1{}",
                             rel_table, foreign_field, cast
                         );
+                        let mut params = vec![val_str];
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(") t");
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
-                        let rows = db::fetch_many(&app_ctx.pool, &sql, &[val_str]).await?;
+                        let rows = db::fetch_many(&app_ctx.pool, &sql, &params).await?;
                         let items: Vec<FieldValue> = rows
                             .into_iter()
                             .map(|r| FieldValue::value(gql_val(r)))
@@ -95,6 +103,7 @@ pub(crate) fn build_table_object(
                     let foreign_field = foreign_field.clone();
                     let rel_table = rel_table.clone();
                     let foreign_int = foreign_int;
+                    let row_filters = rel_row_filters.clone();
                     FieldFuture::new(async move {
                         let parent = ctx.parent_value.as_value()
                             .ok_or_else(|| async_graphql::Error::new("not a value"))?;
@@ -104,12 +113,17 @@ pub(crate) fn build_table_object(
                         };
                         let val_str = gql_value_to_sql_string(&local_val);
                         let cast = if foreign_int { "::int" } else { "" };
-                        let sql = format!(
-                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t",
+                        let mut sql = format!(
+                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{}",
                             rel_table, foreign_field, cast
                         );
+                        let mut params = vec![val_str];
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(" LIMIT 1) t");
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
-                        match db::fetch_one(&app_ctx.pool, &sql, &[val_str]).await? {
+                        match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
                             Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
                             None => Ok(FieldValue::NONE),
                         }
@@ -122,6 +136,7 @@ pub(crate) fn build_table_object(
                     let rel_table = rel_table.clone();
                     let related_pk = related_pk.clone();
                     let pk_int = pk_int;
+                    let row_filters = rel_row_filters.clone();
                     FieldFuture::new(async move {
                         let parent = ctx.parent_value.as_value()
                             .ok_or_else(|| async_graphql::Error::new("not a value"))?;
@@ -131,12 +146,17 @@ pub(crate) fn build_table_object(
                         };
                         let val_str = gql_value_to_sql_string(&local_val);
                         let cast = if pk_int { "::int" } else { "" };
-                        let sql = format!(
-                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t",
+                        let mut sql = format!(
+                            "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{}",
                             rel_table, related_pk, cast
                         );
+                        let mut params = vec![val_str];
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(" LIMIT 1) t");
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
-                        match db::fetch_one(&app_ctx.pool, &sql, &[val_str]).await? {
+                        match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
                             Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
                             None => Ok(FieldValue::NONE),
                         }

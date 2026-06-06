@@ -166,6 +166,60 @@ mutation { updateSizes(id: 5, input: { name: "Renamed" }) { id name } }
 mutation { deleteSizes(id: 5) { id } }
 ```
 
+## Row-level Security
+
+Control data access per-user or per-tenant via HTTP headers. Filters are applied automatically to all queries, mutations, and relation resolvers.
+
+### Column-based filter
+
+Add a `row_filters` block to any table config:
+
+```yaml
+tables:
+  materials:
+    table: materials
+    columns:
+      - name: tenant_id        # column in the database
+        type: string
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID   # HTTP header name
+        auto_set: true             # auto-populate on create (default: true)
+```
+
+- **Reads**: all queries, lists, and relation resolvers append `WHERE tenant_id = $N` using the header value
+- **Creates**: when `auto_set: true`, user-supplied values for `tenant_id` are silently ignored and the column is populated from the header instead
+- **Updates/Deletes**: row filter is applied so only rows matching the header value can be modified
+- **Missing header**: filter is silently skipped (no `WHERE` clause added), allowing unauthenticated access to all rows
+
+### Subquery-based filter
+
+For complex permissions (RBAC, multi-tenant with shared rows), use the subquery variant:
+
+```yaml
+row_filters:
+  - type: subquery
+    from_header: X-User-ID
+    columns: [tenant_id, region]        # target table columns
+    match_columns: [tenant_id, region]  # permission source columns
+    from_source: user_permissions       # table or view
+    user_column: user_id                # column matched to header value
+    cache_ttl_secs: 60                  # optional: ES permission cache TTL
+```
+
+Generates SQL:
+```sql
+WHERE (tenant_id, region) IN (SELECT tenant_id, region FROM user_permissions WHERE user_id = $N)
+```
+
+The subquery source (`from_source`) can be any table or view. Both filters can coexist on the same table — they're combined with `AND`.
+
+### Elasticsearch
+
+Row filters are applied to Elasticsearch search queries using the same configuration. Column-based filters produce `term` queries; subquery-based filters look up permissions from PostgreSQL and generate `bool/should` clauses with per-row `bool/must` term pairs. Subquery results are cached with the per-filter `cache_ttl_secs` (default 60s) to avoid repeated lookups.
+
+**Note**: `term` queries on dynamically-mapped string fields require single-token header values (the standard analyzer splits on hyphens and other separators). Use `keyword`-mapped fields or ensure header values are single tokens when using ES row filters with dynamically-mapped indices.
+
 ## Testing
 
 ### Rust unit tests (no external services)
@@ -191,3 +245,4 @@ Test files:
 - `tests/relations.hurl` — nested relation traversal
 - `tests/mutations.hurl` — create/update/delete lifecycle
 - `tests/search.hurl` — Elasticsearch full-text search, field filters, and nested field search
+- `tests/row_filters.hurl` — Row-level security (column + subquery filters)

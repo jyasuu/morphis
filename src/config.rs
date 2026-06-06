@@ -68,12 +68,98 @@ fn default_port() -> u16 {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum RowFilterConfig {
+    ColumnFilter {
+        column: String,
+        from_header: String,
+        #[serde(default = "default_auto_set")]
+        auto_set: bool,
+    },
+    SubqueryFilter {
+        from_header: String,
+        columns: Vec<String>,
+        match_columns: Vec<String>,
+        from_source: String,
+        user_column: String,
+        #[serde(default)]
+        cache_ttl_secs: Option<u64>,
+    },
+}
+
+impl RowFilterConfig {
+    pub fn header_name(&self) -> &str {
+        match self {
+            RowFilterConfig::ColumnFilter { from_header, .. } => from_header,
+            RowFilterConfig::SubqueryFilter { from_header, .. } => from_header,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn column(&self) -> Option<&str> {
+        match self {
+            RowFilterConfig::ColumnFilter { column, .. } => Some(column),
+            RowFilterConfig::SubqueryFilter { .. } => None,
+        }
+    }
+
+    pub fn is_auto_set(&self) -> bool {
+        match self {
+            RowFilterConfig::ColumnFilter { auto_set, .. } => *auto_set,
+            RowFilterConfig::SubqueryFilter { .. } => false,
+        }
+    }
+}
+
+fn default_auto_set() -> bool {
+    true
+}
+
+#[derive(Debug, Clone)]
+pub struct PermissionCacheEntry {
+    pub values: Vec<serde_json::Value>,
+    pub expires_at: std::time::Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct PermissionCache {
+    store: std::collections::HashMap<String, PermissionCacheEntry>,
+}
+
+impl PermissionCache {
+    pub fn new() -> Self {
+        Self {
+            store: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Option<Vec<serde_json::Value>> {
+        self.store.get(key).and_then(|entry| {
+            if std::time::Instant::now() < entry.expires_at {
+                Some(entry.values.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn set(&mut self, key: String, values: Vec<serde_json::Value>, ttl: std::time::Duration) {
+        self.store.insert(key, PermissionCacheEntry {
+            expires_at: std::time::Instant::now() + ttl,
+            values,
+        });
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct TableConfig {
     pub table: String,
     pub columns: Vec<ColumnConfig>,
     pub primary_key: Vec<String>,
     #[serde(default)]
     pub relations: Vec<RelationConfig>,
+    #[serde(default)]
+    pub row_filters: Vec<RowFilterConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -357,6 +443,144 @@ tables: {}
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert!(config.tables.is_empty());
+    }
+
+    #[test]
+    fn test_row_filters_parsed() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server:
+  host: "0.0.0.0"
+tables:
+  items:
+    table: items
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+      - name: tenant_id
+        type: string
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+        auto_set: true
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let table = config.tables.get("items").unwrap();
+        assert_eq!(table.row_filters.len(), 1);
+        let rf = &table.row_filters[0];
+        assert_eq!(rf.column(), Some("tenant_id"));
+        assert_eq!(rf.header_name(), "X-Tenant-ID");
+        assert!(rf.is_auto_set());
+    }
+
+    #[test]
+    fn test_row_filters_default_auto_set() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server:
+  host: "0.0.0.0"
+tables:
+  items:
+    table: items
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+      - name: tenant_id
+        type: string
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.tables.get("items").unwrap().row_filters[0].is_auto_set());
+    }
+
+    #[test]
+    fn test_row_filters_explicit_disable_auto_set() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server:
+  host: "0.0.0.0"
+tables:
+  items:
+    table: items
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+      - name: tenant_id
+        type: string
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+        auto_set: false
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(!config.tables.get("items").unwrap().row_filters[0].is_auto_set());
+    }
+
+    #[test]
+    fn test_row_filters_empty_by_default() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server:
+  host: "0.0.0.0"
+tables:
+  items:
+    table: items
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.tables.get("items").unwrap().row_filters.is_empty());
+    }
+
+    #[test]
+    fn test_subquery_row_filter() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server:
+  host: "0.0.0.0"
+tables:
+  items:
+    table: items
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+    row_filters:
+      - type: subquery
+        from_header: X-User-ID
+        columns: [tenant_id, region]
+        match_columns: [tenant_id, region]
+        from_source: user_permissions
+        user_column: user_id
+        cache_ttl_secs: 60
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let rf = &config.tables.get("items").unwrap().row_filters[0];
+        match rf {
+            RowFilterConfig::SubqueryFilter { columns, match_columns, from_source, user_column, from_header, .. } => {
+                assert_eq!(columns, &vec!["tenant_id".to_string(), "region".to_string()]);
+                assert_eq!(match_columns, &vec!["tenant_id".to_string(), "region".to_string()]);
+                assert_eq!(from_source, "user_permissions");
+                assert_eq!(user_column, "user_id");
+                assert_eq!(from_header, "X-User-ID");
+            }
+            _ => panic!("expected SubqueryFilter variant"),
+        }
+        assert_eq!(rf.header_name(), "X-User-ID");
+        assert!(!rf.is_auto_set());
+        assert_eq!(rf.column(), None);
     }
 
     #[test]

@@ -2,11 +2,11 @@ use async_graphql::dynamic::{
     Field, FieldFuture, FieldValue, InputValue, Object, TypeRef,
 };
 
-use crate::config::{ColumnType, Config, TableConfig};
+use crate::config::{ColumnType, Config, RowFilterConfig, TableConfig};
 
 use super::db;
 use super::util::{capitalize_first, gql_val, value_as_string};
-use super::AppContext;
+use super::{apply_row_filters, AppContext, Identity};
 
 pub(crate) fn build_mutation_object(
     _config: &Config,
@@ -17,6 +17,7 @@ pub(crate) fn build_mutation_object(
     for (name, table_name, table_config) in tables {
         let create_table_name = table_name.clone();
         let create_table_config = table_config.clone();
+        let create_row_filters = table_config.row_filters.clone();
 
         let name_caps = capitalize_first(name);
         let is_pk_int = table_config.columns.iter().any(|c| {
@@ -32,6 +33,7 @@ pub(crate) fn build_mutation_object(
                 move |ctx| {
                     let table_config = create_table_config.clone();
                     let table_name = create_table_name.clone();
+                    let row_filters = create_row_filters.clone();
 
                     FieldFuture::new(async move {
                         let input = ctx
@@ -40,13 +42,36 @@ pub(crate) fn build_mutation_object(
                             .ok_or_else(|| async_graphql::Error::new("input is required"))?;
                         let obj = input.object()?;
 
+                        let auto_set_columns: Vec<&str> = row_filters.iter()
+                            .filter(|rf| rf.is_auto_set())
+                            .filter_map(|rf| match rf {
+                                RowFilterConfig::ColumnFilter { column, .. } => Some(column.as_str()),
+                                _ => None,
+                            })
+                            .collect();
+
                         let mut columns = Vec::new();
                         let mut params = Vec::new();
 
                         for col in &table_config.columns {
+                            if auto_set_columns.contains(&col.name.as_str()) {
+                                continue;
+                            }
                             if let Some(val) = obj.get(&col.name) {
                                 columns.push(col.name.clone());
                                 params.push(value_as_string(&val));
+                            }
+                        }
+
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            for rf in &row_filters {
+                                if rf.is_auto_set()
+                                    && let RowFilterConfig::ColumnFilter { column, from_header, .. } = rf
+                                    && let Some(val) = identity.header_value(from_header)
+                                {
+                                    columns.push(column.clone());
+                                    params.push(val.to_string());
+                                }
                             }
                         }
 
@@ -78,6 +103,7 @@ pub(crate) fn build_mutation_object(
         let update_table_name = table_name.clone();
         let update_table_config = table_config.clone();
         let update_pk = table_config.primary_key[0].clone();
+        let update_row_filters = table_config.row_filters.clone();
 
         mutation = mutation.field(
             Field::new(
@@ -88,6 +114,7 @@ pub(crate) fn build_mutation_object(
                     let table_name = update_table_name.clone();
                     let pk = update_pk.clone();
                     let is_pk_int = is_pk_int;
+                    let row_filters = update_row_filters.clone();
 
                     FieldFuture::new(async move {
                         let id = if is_pk_int {
@@ -115,14 +142,18 @@ pub(crate) fn build_mutation_object(
 
                         params.push(id);
                         let cast = if is_pk_int { "::int" } else { "" };
-                        let sql = format!(
-                            "WITH upd AS (UPDATE {} SET {} WHERE {} = ${}{} RETURNING *) SELECT row_to_json(upd)::text FROM upd",
+                        let mut sql = format!(
+                            "WITH upd AS (UPDATE {} SET {} WHERE {} = ${}{}",
                             table_name,
                             set_clauses.join(", "),
                             pk,
                             params.len(),
                             cast,
                         );
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(" RETURNING *) SELECT row_to_json(upd)::text FROM upd");
 
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
                         let row = db::fetch_one(&app_ctx.pool, &sql, &params)
@@ -142,6 +173,7 @@ pub(crate) fn build_mutation_object(
 
         let delete_table_name = table_name.clone();
         let delete_pk = table_config.primary_key[0].clone();
+        let delete_row_filters = table_config.row_filters.clone();
 
         mutation = mutation.field(
             Field::new(
@@ -151,6 +183,7 @@ pub(crate) fn build_mutation_object(
                     let table_name = delete_table_name.clone();
                     let pk = delete_pk.clone();
                     let is_pk_int = is_pk_int;
+                    let row_filters = delete_row_filters.clone();
 
                     FieldFuture::new(async move {
                         let id = if is_pk_int {
@@ -161,11 +194,16 @@ pub(crate) fn build_mutation_object(
                         let id = id.ok_or_else(|| async_graphql::Error::new("id is required"))?;
 
                         let cast = if is_pk_int { "::int" } else { "" };
-                        let sql =
-                            format!("WITH del AS (DELETE FROM {} WHERE {} = $1{} RETURNING *) SELECT row_to_json(del)::text FROM del", table_name, pk, cast);
+                        let mut sql =
+                            format!("WITH del AS (DELETE FROM {} WHERE {} = $1{}", table_name, pk, cast);
+                        let mut params = vec![id];
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(" RETURNING *) SELECT row_to_json(del)::text FROM del");
 
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
-                        let row = db::fetch_one(&app_ctx.pool, &sql, &[id])
+                        let row = db::fetch_one(&app_ctx.pool, &sql, &params)
                             .await?
                             .ok_or_else(|| async_graphql::Error::new("no row returned"))?;
 

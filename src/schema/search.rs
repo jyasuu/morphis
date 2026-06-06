@@ -3,13 +3,13 @@ use async_graphql::dynamic::{
 };
 use sqlx::{Pool, Postgres};
 
-use crate::config::{SearchIndexConfig, SearchJoinConfig};
+use crate::config::{RowFilterConfig, SearchIndexConfig, SearchJoinConfig};
 
 use super::db;
 use super::util::{capitalize_first, gql_val};
-use super::AppContext;
+use super::{AppContext, Identity};
 
-pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig) -> Object {
+pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig, row_filters: Vec<RowFilterConfig>) -> Object {
     let idx_cfg = index_cfg.clone();
     let type_name = idx_cfg.graphql_type.clone();
     query = query.field(
@@ -18,17 +18,15 @@ pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig)
             TypeRef::named_nn_list_nn(&type_name),
             move |ctx| {
                 let idx_cfg = idx_cfg.clone();
+                let row_filters = row_filters.clone();
                     FieldFuture::new(async move {
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
-                        let (es_client, es_url) = match (&app_ctx.es_client, &app_ctx.es_url) {
-                            (Some(c), Some(u)) => (c.clone(), u.clone()),
-                            _ => return Err(async_graphql::Error::new("Elasticsearch not configured")),
-                        };
                         let query_str = ctx.args.get("query").and_then(|v| v.string().ok().map(String::from)).unwrap_or_default();
                         let filter = ctx.args.get("filter");
                         let limit = ctx.args.get("limit").and_then(|v| v.u64().ok()).map(|n| n as usize).unwrap_or(50);
                         let offset = ctx.args.get("offset").and_then(|v| v.u64().ok()).map(|n| n as usize).unwrap_or(0);
-                        let results = es_search(&app_ctx.pool, &es_client, &es_url, &idx_cfg, &query_str, filter.as_ref(), limit, offset).await?;
+                        let identity = ctx.data::<Identity>().ok();
+                        let results = es_search(app_ctx, &idx_cfg, &query_str, filter.as_ref(), limit, offset, identity, &row_filters).await?;
                         let items: Vec<FieldValue> = results.into_iter().map(|r| FieldValue::value(gql_val(r))).collect();
                         Ok(Some(FieldValue::list(items)))
                     })
@@ -42,18 +40,27 @@ pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig)
     query
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn es_search(
-    pool: &Pool<Postgres>,
-    es_client: &reqwest::Client,
-    es_url: &str,
+    app_ctx: &AppContext,
     index_cfg: &SearchIndexConfig,
     query_str: &str,
     filters: Option<&ValueAccessor<'_>>,
     limit: usize,
     offset: usize,
+    identity: Option<&Identity>,
+    row_filters: &[RowFilterConfig],
 ) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
+    let (es_client, es_url) = match (&app_ctx.es_client, &app_ctx.es_url) {
+        (Some(c), Some(u)) => (c.clone(), u.clone()),
+        _ => return Err(async_graphql::Error::new("Elasticsearch not configured")),
+    };
+
     let all_searchable = collect_searchable_fields(index_cfg);
-    let must_clauses = build_es_filter(filters, &all_searchable);
+    let mut must_clauses = build_es_filter(filters, &all_searchable);
+    let filter_clauses = build_es_row_filters(app_ctx, identity, row_filters).await;
+    must_clauses.extend(filter_clauses);
+
     let mut bool_body = serde_json::json!({
         "must": must_clauses
     });
@@ -90,10 +97,83 @@ async fn es_search(
     let mut results = Vec::new();
     for hit in hits {
         let source = hit.get("_source").cloned().unwrap_or(serde_json::Value::Null);
-        let enriched = es_enrich_source(source, index_cfg, pool).await;
+        let enriched = es_enrich_source(source, index_cfg, &app_ctx.pool).await;
         results.push(enriched);
     }
     Ok(results)
+}
+
+async fn build_es_row_filters(
+    app_ctx: &AppContext,
+    identity: Option<&Identity>,
+    row_filters: &[RowFilterConfig],
+) -> Vec<serde_json::Value> {
+    let identity = match identity {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+    let mut clauses = Vec::new();
+    for rf in row_filters {
+        let Some(val) = identity.header_value(rf.header_name()) else { continue; };
+        match rf {
+            RowFilterConfig::ColumnFilter { column, .. } => {
+                clauses.push(serde_json::json!({
+                    "term": { column: val }
+                }));
+            }
+            RowFilterConfig::SubqueryFilter { columns, match_columns, from_source, user_column, cache_ttl_secs, .. } => {
+                let cache_key = format!("{}:{}:{}", from_source, user_column, val);
+                let ttl = std::time::Duration::from_secs(cache_ttl_secs.unwrap_or(60));
+                let cols: Vec<String> = match_columns.clone();
+                let rows = {
+                    let cached = app_ctx.permission_cache.lock().unwrap().get(&cache_key);
+                    match cached {
+                        Some(r) => r,
+                        None => {
+                            let sql = format!(
+                                "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
+                                cols.join(", "),
+                                from_source,
+                                user_column,
+                            );
+                            let result = db::fetch_joined_rows(&app_ctx.pool, &sql, val).await;
+                            app_ctx.permission_cache.lock().unwrap().set(cache_key, result.clone(), ttl);
+                            result
+                        }
+                    }
+                };
+                if rows.is_empty() {
+                    let false_clause = serde_json::json!({
+                        "term": { "__no_match": "__impossible" }
+                    });
+                    clauses.push(false_clause);
+                } else {
+                    let mut should = Vec::new();
+                    for row in &rows {
+                        let mut must = Vec::new();
+                        if let Some(obj) = row.as_object() {
+                            for (col_idx, col) in columns.iter().enumerate() {
+                                if let Some(mcol) = match_columns.get(col_idx)
+                                    && let Some(v) = obj.get(mcol.as_str())
+                                {
+                                    must.push(serde_json::json!({ "term": { col: v } }));
+                                }
+                            }
+                        }
+                        if !must.is_empty() {
+                            should.push(serde_json::json!({ "bool": { "must": must } }));
+                        }
+                    }
+                    if !should.is_empty() {
+                        clauses.push(serde_json::json!({
+                            "bool": { "should": should, "minimum_should_match": 1 }
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    clauses
 }
 
 fn collect_searchable_fields(cfg: &SearchIndexConfig) -> Vec<String> {

@@ -6,7 +6,7 @@ use crate::config::{ColumnType, Config, TableConfig};
 use super::db;
 use super::input::build_filter_sql;
 use super::util::{capitalize_first, gql_val};
-use super::AppContext;
+use super::{apply_row_filters, AppContext, Identity};
 
 pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]) -> Object {
     let mut query = Object::new("Query");
@@ -14,6 +14,7 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
     for (name, table_name, table_config) in tables {
         let pk = table_config.primary_key[0].clone();
         let tn = table_name.clone();
+        let row_filters = table_config.row_filters.clone();
 
         let is_pk_int = table_config.columns.iter().any(|c| {
             table_config.primary_key.contains(&c.name)
@@ -31,6 +32,7 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                     let pk = pk.clone();
                     let table_name = tn_first_closure.clone();
                     let is_pk_int = is_pk_int;
+                    let row_filters = row_filters.clone();
 
                     FieldFuture::new(async move {
                         let id = if is_pk_int {
@@ -42,11 +44,16 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                             id.ok_or_else(|| async_graphql::Error::new("id is required"))?;
 
                         let cast = if is_pk_int { "::int" } else { "" };
-                        let sql =
-                            format!("SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{} LIMIT 1) t", table_name, pk, cast);
+                        let mut sql =
+                            format!("SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {} = $1{}", table_name, pk, cast);
+                        let mut params = vec![id];
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                        }
+                        sql.push_str(" LIMIT 1) t");
                         let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
 
-                        match db::fetch_one(&app_ctx.pool, &sql, &[id]).await? {
+                        match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
                             Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
                             None => Ok(FieldValue::NONE),
                         }
@@ -60,6 +67,7 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
         let tn_list = tn.clone();
         let tn_list_closure = tn.clone();
         let col_names: Vec<String> = table_config.columns.iter().map(|c| c.name.clone()).collect();
+        let list_row_filters = table_config.row_filters.clone();
 
         query = query.field(
             Field::new(
@@ -68,6 +76,7 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                 move |ctx| {
                     let table_name = tn_list_closure.clone();
                     let col_names = col_names.clone();
+                    let row_filters = list_row_filters.clone();
 
                     FieldFuture::new(async move {
                         let filter_arg = ctx.args.get("filter");
@@ -87,6 +96,9 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                                 sql.push_str(&format!(" WHERE {}", clause));
                                 params = p;
                             }
+                        }
+                        if let Ok(identity) = ctx.data::<Identity>() {
+                            apply_row_filters(&mut sql, &mut params, identity, &row_filters);
                         }
 
                         if let Some(order) = order_by {
