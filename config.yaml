@@ -50,6 +50,7 @@ tables:
         type: int
         nullable: false
         unique: true
+        auto_increment: true
       - name: size_code
         type: string
         nullable: false
@@ -74,6 +75,7 @@ tables:
         type: int
         nullable: false
         unique: true
+        auto_increment: true
       - name: colorway_code
         type: string
         nullable: false
@@ -101,6 +103,7 @@ tables:
         type: int
         nullable: false
         unique: true
+        auto_increment: true
       - name: mat_no
         type: string
         nullable: false
@@ -130,6 +133,7 @@ tables:
         type: int
         nullable: false
         unique: true
+        auto_increment: true
       - name: feature_id
         type: int
         nullable: false
