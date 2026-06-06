@@ -87,6 +87,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_json_to_gql_number() {
         let n = json_to_gql(serde_json::json!(42));
         assert_eq!(n, Value::Number(42.into()));

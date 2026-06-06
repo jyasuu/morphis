@@ -48,16 +48,22 @@ pub(crate) async fn fetch_joined_rows(
     pool: &Pool<Postgres>,
     sql: &str,
     local_val: &str,
-) -> Vec<serde_json::Value> {
+) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
     let mut query = sqlx::query(sql);
     query = query.bind(local_val);
-    match query.fetch_optional(pool).await {
-        Ok(Some(row)) => row
-            .try_get::<String, _>(0)
-            .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| match v { serde_json::Value::Array(arr) => Some(arr), _ => None })
-            .unwrap_or_default(),
-        _ => vec![],
+    let row = query.fetch_optional(pool).await
+        .map_err(|e| async_graphql::Error::new(format!("fetch_joined_rows query failed: {}", e)))?;
+    match row {
+        Some(row) => {
+            let json_str: String = row.try_get(0)
+                .map_err(|e| async_graphql::Error::new(format!("fetch_joined_rows column error: {}", e)))?;
+            let val: serde_json::Value = serde_json::from_str(&json_str)
+                .map_err(|e| async_graphql::Error::new(format!("fetch_joined_rows JSON parse error: {}", e)))?;
+            match val {
+                serde_json::Value::Array(arr) => Ok(arr),
+                _ => Ok(vec![val]),
+            }
+        }
+        None => Ok(vec![]),
     }
 }

@@ -37,7 +37,13 @@ pub(crate) fn build_input_object(name: &str, table_config: &TableConfig, all_nul
 pub(crate) fn build_filter_input(name: &str, table_config: &TableConfig) -> InputObject {
     let mut input = InputObject::new(format!("{}FilterInput", name));
     for col in &table_config.columns {
-        input = input.field(InputValue::new(col.name.clone(), TypeRef::named(TypeRef::STRING)));
+        let scalar = match col.col_type.to_string().as_str() {
+            "Int" | "Int64" => TypeRef::INT,
+            "Float" => TypeRef::FLOAT,
+            "Boolean" => TypeRef::BOOLEAN,
+            _ => TypeRef::STRING,
+        };
+        input = input.field(InputValue::new(col.name.clone(), TypeRef::named(scalar)));
     }
     input
 }
@@ -74,7 +80,7 @@ pub(crate) fn build_filter_sql(
 mod tests {
     #[test]
     fn test_filter_clause_generation() {
-        let allowed = vec!["name".to_string(), "status".to_string()];
+        let allowed = ["name".to_string(), "status".to_string()];
         let pairs = vec![("name", "test"), ("status", "active")];
 
         let mut clauses = Vec::new();
@@ -91,8 +97,8 @@ mod tests {
 
     #[test]
     fn test_unknown_columns_skipped() {
-        let allowed = vec!["name".to_string()];
-        let pairs = vec![("name", "test"), ("INJECTION", "evil")];
+        let allowed = ["name".to_string()];
+        let pairs = [("name", "test"), ("INJECTION", "evil")];
 
         let result: Vec<&str> = pairs.iter()
             .filter(|(k, _)| allowed.contains(&k.to_string()))
@@ -110,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_null_values_skipped() {
-        let allowed = vec!["name".to_string(), "status".to_string()];
+        let allowed = ["name".to_string(), "status".to_string()];
         let pairs = vec![("name", "test")];
 
         let mut clauses = Vec::new();

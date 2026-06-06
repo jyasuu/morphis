@@ -85,7 +85,8 @@ pub(crate) fn build_mutation_object(
                             placeholders.join(", ")
                         );
 
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
                         let row = db::fetch_one(&app_ctx.pool, &sql, &params)
                             .await?
                             .ok_or_else(|| async_graphql::Error::new("no row returned"))?;
@@ -155,7 +156,8 @@ pub(crate) fn build_mutation_object(
                         }
                         sql.push_str(" RETURNING *) SELECT row_to_json(upd)::text FROM upd");
 
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
                         let row = db::fetch_one(&app_ctx.pool, &sql, &params)
                             .await?
                             .ok_or_else(|| async_graphql::Error::new("no row returned"))?;
@@ -202,7 +204,8 @@ pub(crate) fn build_mutation_object(
                         }
                         sql.push_str(" RETURNING *) SELECT row_to_json(del)::text FROM del");
 
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
                         let row = db::fetch_one(&app_ctx.pool, &sql, &params)
                             .await?
                             .ok_or_else(|| async_graphql::Error::new("no row returned"))?;

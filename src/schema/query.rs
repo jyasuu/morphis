@@ -51,7 +51,8 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                             apply_row_filters(&mut sql, &mut params, identity, &row_filters);
                         }
                         sql.push_str(" LIMIT 1) t");
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
 
                         match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
                             Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
@@ -139,7 +140,8 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
                         }
                         sql.push_str(") t");
 
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
                         let rows = db::fetch_many(&app_ctx.pool, &sql, &params).await?;
                         let items: Vec<FieldValue> = rows
                             .into_iter()

@@ -20,7 +20,8 @@ pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig,
                 let idx_cfg = idx_cfg.clone();
                 let row_filters = row_filters.clone();
                     FieldFuture::new(async move {
-                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>().unwrap();
+                        let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
+                            .map_err(|_| async_graphql::Error::new("internal context missing"))?;
                         let query_str = ctx.args.get("query").and_then(|v| v.string().ok().map(String::from)).unwrap_or_default();
                         let filter = ctx.args.get("filter");
                         let limit = ctx.args.get("limit").and_then(|v| v.u64().ok()).map(|n| n as usize).unwrap_or(50);
@@ -58,7 +59,7 @@ async fn es_search(
 
     let all_searchable = collect_searchable_fields(index_cfg);
     let mut must_clauses = build_es_filter(filters, &all_searchable);
-    let filter_clauses = build_es_row_filters(app_ctx, identity, row_filters).await;
+    let filter_clauses = build_es_row_filters(app_ctx, identity, row_filters).await?;
     must_clauses.extend(filter_clauses);
 
     let mut bool_body = serde_json::json!({
@@ -107,10 +108,10 @@ async fn build_es_row_filters(
     app_ctx: &AppContext,
     identity: Option<&Identity>,
     row_filters: &[RowFilterConfig],
-) -> Vec<serde_json::Value> {
+) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
     let identity = match identity {
         Some(id) => id,
-        None => return Vec::new(),
+        None => return Ok(Vec::new()),
     };
     let mut clauses = Vec::new();
     for rf in row_filters {
@@ -126,20 +127,19 @@ async fn build_es_row_filters(
                 let ttl = std::time::Duration::from_secs(cache_ttl_secs.unwrap_or(60));
                 let cols: Vec<String> = match_columns.clone();
                 let rows = {
-                    let cached = app_ctx.permission_cache.lock().unwrap().get(&cache_key);
-                    match cached {
-                        Some(r) => r,
-                        None => {
-                            let sql = format!(
-                                "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
-                                cols.join(", "),
-                                from_source,
-                                user_column,
-                            );
-                            let result = db::fetch_joined_rows(&app_ctx.pool, &sql, val).await;
-                            app_ctx.permission_cache.lock().unwrap().set(cache_key, result.clone(), ttl);
-                            result
-                        }
+                    let mut cache = app_ctx.permission_cache.lock().await;
+                    if let Some(cached) = cache.get(&cache_key) {
+                        cached
+                    } else {
+                        let sql = format!(
+                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
+                            cols.join(", "),
+                            from_source,
+                            user_column,
+                        );
+                        let result = db::fetch_joined_rows(&app_ctx.pool, &sql, val).await?;
+                        cache.set(cache_key, result.clone(), ttl);
+                        result
                     }
                 };
                 if rows.is_empty() {
@@ -173,7 +173,7 @@ async fn build_es_row_filters(
             }
         }
     }
-    clauses
+    Ok(clauses)
 }
 
 fn collect_searchable_fields(cfg: &SearchIndexConfig) -> Vec<String> {
@@ -197,26 +197,26 @@ fn build_es_filter(
     _all_fields: &[String],
 ) -> Vec<serde_json::Value> {
     let mut must = Vec::new();
-    if let Some(f) = filter {
-        if let Ok(obj) = f.object() {
-            for (key, val) in obj.iter() {
-                if val.is_null() { continue; }
-                let key_str = key.as_str();
-                if let Ok(s) = val.string() {
-                    if !s.is_empty() {
-                        must.push(serde_json::json!({
-                            "term": { key_str: s }
-                        }));
-                    }
-                } else if let Ok(n) = val.i64() {
+    if let Some(f) = filter
+        && let Ok(obj) = f.object()
+    {
+        for (key, val) in obj.iter() {
+            if val.is_null() { continue; }
+            let key_str = key.as_str();
+            if let Ok(s) = val.string() {
+                if !s.is_empty() {
                     must.push(serde_json::json!({
-                        "term": { key_str: n }
-                    }));
-                } else if let Ok(n) = val.f64() {
-                    must.push(serde_json::json!({
-                        "term": { key_str: n }
+                        "term": { key_str: s }
                     }));
                 }
+            } else if let Ok(n) = val.i64() {
+                must.push(serde_json::json!({
+                    "term": { key_str: n }
+                }));
+            } else if let Ok(n) = val.f64() {
+                must.push(serde_json::json!({
+                    "term": { key_str: n }
+                }));
             }
         }
     }
@@ -248,7 +248,10 @@ async fn es_enrich_nested(
             "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1) t",
             jf.table, jf.foreign_field
         );
-        let rows = db::fetch_joined_rows(pool, &sql, &local_val).await;
+        let rows = db::fetch_joined_rows(pool, &sql, &local_val).await.unwrap_or_else(|e| {
+            tracing::warn!("ES enrichment query failed: {:?}", e);
+            vec![]
+        });
         let enriched_rows: Vec<serde_json::Value> =
             futures::future::join_all(rows.into_iter().map(|item| {
                 let jf_clone = jf.clone();

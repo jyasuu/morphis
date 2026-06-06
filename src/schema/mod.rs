@@ -7,7 +7,8 @@ mod table;
 mod util;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use async_graphql::dynamic::{InputObject, InputValue, Schema, TypeRef};
 use sqlx::{Pool, Postgres};

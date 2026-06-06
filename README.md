@@ -246,3 +246,7 @@ Test files:
 - `tests/mutations.hurl` — create/update/delete lifecycle
 - `tests/search.hurl` — Elasticsearch full-text search, field filters, and nested field search
 - `tests/row_filters.hurl` — Row-level security (column + subquery filters)
+
+## Limitations
+
+- **N+1 queries**: Relation resolvers execute one SQL query per related row. A list of N materials each loading their colorways will execute N+1 queries (one for the list, one per material). This is acceptable for small-to-medium result sets but will not scale for large lists with eager-loaded relations.
