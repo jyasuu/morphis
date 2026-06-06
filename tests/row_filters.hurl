@@ -315,141 +315,141 @@ jsonpath "$.data.deleteMaterials.mat_no" == "RLTEST2"
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createUserPermissions(input: { user_id: \"user-a\", tenant_id: \"-\", region: \"us\" }) { id user_id region } }"
+  "query": "mutation { createUser_permissions(input: { user_id: \"user-a\", tenant_id: \"-\", region: \"us\" }) { id user_id region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createUserPermissions.user_id" == "user-a"
+jsonpath "$.data.createUser_permissions.user_id" == "user-a"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createUserPermissions(input: { user_id: \"user-a\", tenant_id: \"-\", region: \"eu\" }) { id user_id region } }"
+  "query": "mutation { createUser_permissions(input: { user_id: \"user-a\", tenant_id: \"-\", region: \"eu\" }) { id user_id region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createUserPermissions.user_id" == "user-a"
+jsonpath "$.data.createUser_permissions.user_id" == "user-a"
 
 # Create permission: user-b can access region "us" only
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createUserPermissions(input: { user_id: \"user-b\", tenant_id: \"-\", region: \"us\" }) { id user_id region } }"
+  "query": "mutation { createUser_permissions(input: { user_id: \"user-b\", tenant_id: \"-\", region: \"us\" }) { id user_id region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createUserPermissions.user_id" == "user-b"
+jsonpath "$.data.createUser_permissions.user_id" == "user-b"
 
 # Create protected_data entries (no auto_set — all fields from input)
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createProtectedData(input: { id: \"PDATA-001\", name: \"Protected US\", region: \"us\" }) { id name region } }"
+  "query": "mutation { createProtected_data(input: { id: \"PDATA-001\", name: \"Protected US\", region: \"us\" }) { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createProtectedData.id" == "PDATA-001"
-jsonpath "$.data.createProtectedData.region" == "us"
+jsonpath "$.data.createProtected_data.id" == "PDATA-001"
+jsonpath "$.data.createProtected_data.region" == "us"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createProtectedData(input: { id: \"PDATA-002\", name: \"Protected EU\", region: \"eu\" }) { id name region } }"
+  "query": "mutation { createProtected_data(input: { id: \"PDATA-002\", name: \"Protected EU\", region: \"eu\" }) { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createProtectedData.id" == "PDATA-002"
-jsonpath "$.data.createProtectedData.region" == "eu"
+jsonpath "$.data.createProtected_data.id" == "PDATA-002"
+jsonpath "$.data.createProtected_data.region" == "eu"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { createProtectedData(input: { id: \"PDATA-003\", name: \"Protected US 2\", region: \"us\" }) { id name region } }"
+  "query": "mutation { createProtected_data(input: { id: \"PDATA-003\", name: \"Protected US 2\", region: \"us\" }) { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.createProtectedData.id" == "PDATA-003"
-jsonpath "$.data.createProtectedData.region" == "us"
+jsonpath "$.data.createProtected_data.id" == "PDATA-003"
+jsonpath "$.data.createProtected_data.region" == "us"
 
 # user-a can see both us and eu records
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "{ protectedDataList { id name region } }"
+  "query": "{ protected_dataList { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.protectedDataList" count == 3
-jsonpath "$.data.protectedDataList[*].id" contains "PDATA-001"
-jsonpath "$.data.protectedDataList[*].id" contains "PDATA-002"
-jsonpath "$.data.protectedDataList[*].id" contains "PDATA-003"
+jsonpath "$.data.protected_dataList" count == 3
+jsonpath "$.data.protected_dataList[*].id" contains "PDATA-001"
+jsonpath "$.data.protected_dataList[*].id" contains "PDATA-002"
+jsonpath "$.data.protected_dataList[*].id" contains "PDATA-003"
 
 # user-b can only see us records
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
-  "query": "{ protectedDataList { id name region } }"
+  "query": "{ protected_dataList { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.protectedDataList" count == 2
-jsonpath "$.data.protectedDataList[*].id" contains "PDATA-001"
-jsonpath "$.data.protectedDataList[*].id" contains "PDATA-003"
+jsonpath "$.data.protected_dataList" count == 2
+jsonpath "$.data.protected_dataList[*].id" contains "PDATA-001"
+jsonpath "$.data.protected_dataList[*].id" contains "PDATA-003"
 
 # user-a can combine client filter with row permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "{ protectedDataList(filter: { region: \"eu\" }) { id name region } }"
+  "query": "{ protected_dataList(filter: { region: \"eu\" }) { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.protectedDataList" count == 1
-jsonpath "$.data.protectedDataList[0].id" == "PDATA-002"
+jsonpath "$.data.protected_dataList" count == 1
+jsonpath "$.data.protected_dataList[0].id" == "PDATA-002"
 
 # Single query with matching permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "{ protectedData(id: \"PDATA-001\") { id name region } }"
+  "query": "{ protected_data(id: \"PDATA-001\") { id name region } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.protectedData.id" == "PDATA-001"
+jsonpath "$.data.protected_data.id" == "PDATA-001"
 
 # Single query without matching permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
-  "query": "{ protectedData(id: \"PDATA-002\") { id name } }"
+  "query": "{ protected_data(id: \"PDATA-002\") { id name } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.protectedData" == null
+jsonpath "$.data.protected_data" == null
 
 # Update with matching permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "mutation { updateProtectedData(id: \"PDATA-001\", input: { name: \"Updated US\" }) { id name } }"
+  "query": "mutation { updateProtected_data(id: \"PDATA-001\", input: { name: \"Updated US\" }) { id name } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.updateProtectedData.id" == "PDATA-001"
-jsonpath "$.data.updateProtectedData.name" == "Updated US"
+jsonpath "$.data.updateProtected_data.id" == "PDATA-001"
+jsonpath "$.data.updateProtected_data.name" == "Updated US"
 
 # Update with non-matching permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
-  "query": "mutation { updateProtectedData(id: \"PDATA-002\", input: { name: \"Should Not Work\" }) { id } }"
+  "query": "mutation { updateProtected_data(id: \"PDATA-002\", input: { name: \"Should Not Work\" }) { id } }"
 }
 HTTP 200
 [Asserts]
@@ -461,7 +461,7 @@ POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
-  "query": "mutation { deleteProtectedData(id: \"PDATA-002\") { id } }"
+  "query": "mutation { deleteProtected_data(id: \"PDATA-002\") { id } }"
 }
 HTTP 200
 [Asserts]
@@ -473,56 +473,56 @@ POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "mutation { deleteProtectedData(id: \"PDATA-001\") { id } }"
+  "query": "mutation { deleteProtected_data(id: \"PDATA-001\") { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteProtectedData.id" == "PDATA-001"
+jsonpath "$.data.deleteProtected_data.id" == "PDATA-001"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
-  "query": "mutation { deleteProtectedData(id: \"PDATA-002\") { id } }"
+  "query": "mutation { deleteProtected_data(id: \"PDATA-002\") { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteProtectedData.id" == "PDATA-002"
+jsonpath "$.data.deleteProtected_data.id" == "PDATA-002"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
-  "query": "mutation { deleteProtectedData(id: \"PDATA-003\") { id } }"
+  "query": "mutation { deleteProtected_data(id: \"PDATA-003\") { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteProtectedData.id" == "PDATA-003"
+jsonpath "$.data.deleteProtected_data.id" == "PDATA-003"
 
 # Clean up user_permissions
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { deleteUserPermissions(id: 1) { id } }"
+  "query": "mutation { deleteUser_permissions(id: 1) { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteUserPermissions.id" == "1"
+jsonpath "$.data.deleteUser_permissions.id" == 1
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { deleteUserPermissions(id: 2) { id } }"
+  "query": "mutation { deleteUser_permissions(id: 2) { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteUserPermissions.id" == "2"
+jsonpath "$.data.deleteUser_permissions.id" == 2
 
 POST http://localhost:4000/graphql
 Content-Type: application/json
 {
-  "query": "mutation { deleteUserPermissions(id: 3) { id } }"
+  "query": "mutation { deleteUser_permissions(id: 3) { id } }"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.data.deleteUserPermissions.id" == "3"
+jsonpath "$.data.deleteUser_permissions.id" == 3

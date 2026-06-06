@@ -230,22 +230,24 @@ cargo test
 
 Tests config parsing, JSON conversion helpers, filter logic, and input building.
 
-### Integration tests (requires PostgreSQL + Elasticsearch)
+### Integration tests (Docker Compose, from zero)
 
-Tests use [Hurl](https://hurl.dev) against a running server:
+Tests use [Hurl](https://hurl.dev) against a full stack (DB, ES, app, auth-proxy):
 
 ```bash
-# Start services and server, then:
-bash tests/run_tests.sh
+# Build binaries, images, and run all tests
+./build-images.sh && docker compose run --rm tests
 ```
 
-Test files:
+The entrypoint handles: waiting for health, seeding ES, cleaning stale data, patching test URLs, and running tests in order.
+
+Test files (execute in this order due to side effects):
 - `tests/health.hurl` — health endpoint
+- `tests/mutations.hurl` — CRUD (creates orphan `HL` size, cleaned up after)
 - `tests/queries.hurl` — single/list queries with filters
 - `tests/relations.hurl` — nested relation traversal
-- `tests/mutations.hurl` — create/update/delete lifecycle
 - `tests/search.hurl` — Elasticsearch full-text search, field filters, and nested field search
-- `tests/row_filters.hurl` — Row-level security (column + subquery filters)
+- `tests/row_filters.hurl` — Row-level security (column + subquery filters + RBAC)
 
 ## Limitations
 

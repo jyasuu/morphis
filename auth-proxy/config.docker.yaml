@@ -1,0 +1,11 @@
+listen_addr: "0.0.0.0:9080"
+upstream: "http://app:4000"
+jwt_secret: "test-secret-key-for-integration-tests"
+require_auth: true
+header_mappings:
+  - claim: sub
+    header: X-User-ID
+  - claim: tenant_id
+    header: X-Tenant-ID
+  - claim: role
+    header: X-Role

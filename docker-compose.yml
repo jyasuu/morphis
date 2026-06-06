@@ -12,6 +12,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
 
   es:
     image: elasticsearch:8.17.0
@@ -28,16 +31,37 @@ services:
       retries: 10
 
   app:
-    build: .
+    image: morphis:local
     ports:
       - "4000:4000"
     environment:
       MORPHIS_CONFIG: /app/config.yaml
-      DATABASE_URL: postgres://postgres:postgres@db:5432/morphis
     depends_on:
       db:
         condition: service_healthy
       es:
         condition: service_healthy
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config.docker.yaml:/app/config.yaml
+
+  auth-proxy:
+    image: auth-proxy:local
+    ports:
+      - "9080:9080"
+    environment:
+      AUTH_PROXY_CONFIG: /app/config.yaml
+    depends_on:
+      app:
+        condition: service_started
+    volumes:
+      - ./auth-proxy/config.docker.yaml:/app/config.yaml
+
+  tests:
+    image: tests:local
+    depends_on:
+      app:
+        condition: service_started
+      es:
+        condition: service_healthy
+    profiles:
+      - tests

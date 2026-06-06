@@ -1,0 +1,236 @@
+database:
+  url: "postgres://postgres:postgres@db:5432/morphis"
+  max_connections: 10
+
+elasticsearch:
+  url: "http://es:9200"
+
+server:
+  host: "0.0.0.0"
+  port: 4000
+
+tables:
+  materials:
+    table: materials
+    primary_key: [mat_no]
+    columns:
+      - name: mat_no
+        type: string
+        nullable: false
+        unique: true
+      - name: name
+        type: string
+        nullable: false
+      - name: status
+        type: string
+        nullable: false
+        default: "'active'"
+      - name: tenant_id
+        type: string
+        nullable: true
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+        auto_set: true
+      - type: subquery
+        from_header: X-User-ID
+        columns: [tenant_id]
+        match_columns: [tenant_id]
+        from_source: materials
+        user_column: tenant_id
+    relations:
+      - name: sizes
+        type: has_many
+        table: sizes
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: colorways
+        type: has_many
+        table: colorways
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: material_features
+        type: has_many
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
+
+  sizes:
+    table: sizes
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: size_code
+        type: string
+        nullable: false
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: name
+        type: string
+        nullable: false
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+
+  colorways:
+    table: colorways
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: colorway_code
+        type: string
+        nullable: false
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: name
+        type: string
+        nullable: false
+      - name: hex
+        type: string
+        nullable: true
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+
+  material_features:
+    table: material_features
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: mat_no
+        type: string
+        nullable: false
+      - name: feature_name
+        type: string
+        nullable: false
+      - name: description
+        type: string
+        nullable: true
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: feature_attributes
+        type: has_many
+        table: feature_attributes
+        local_field: id
+        foreign_field: feature_id
+
+  feature_attributes:
+    table: feature_attributes
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: feature_id
+        type: int
+        nullable: false
+      - name: attr_name
+        type: string
+        nullable: false
+      - name: attr_value
+        type: string
+        nullable: false
+    relations:
+      - name: material_feature
+        type: belongs_to
+        table: material_features
+        local_field: feature_id
+        foreign_field: id
+
+  user_permissions:
+    table: user_permissions
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: user_id
+        type: string
+        nullable: false
+      - name: tenant_id
+        type: string
+        nullable: false
+      - name: region
+        type: string
+        nullable: false
+
+  protected_data:
+    table: protected_data
+    primary_key: [id]
+    columns:
+      - name: id
+        type: string
+        nullable: false
+        unique: true
+      - name: name
+        type: string
+        nullable: false
+      - name: value
+        type: string
+        nullable: true
+      - name: region
+        type: string
+        nullable: true
+    row_filters:
+      - type: subquery
+        from_header: X-User-ID
+        columns: [region]
+        match_columns: [region]
+        from_source: user_permissions
+        user_column: user_id
+        cache_ttl_secs: 30
+
+search_indexes:
+  - name: materials_search
+    index: materials
+    type: materials
+    searchable_fields:
+      - mat_no
+      - name
+      - status
+    join_fields:
+      - name: features
+        index_field: material_features
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
+        searchable_fields:
+          - feature_name
+          - description
+        join_fields:
+          - name: attributes
+            index_field: feature_attributes
+            table: feature_attributes
+            local_field: id
+            foreign_field: feature_id
+            searchable_fields:
+              - attr_name
+              - attr_value

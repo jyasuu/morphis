@@ -68,6 +68,7 @@ pub(crate) fn build_table_object(
                     let foreign_field = foreign_field.clone();
                     let rel_table = rel_table.clone();
                     let foreign_int = foreign_int;
+                    let related_pk = related_pk.clone();
                     let row_filters = rel_row_filters.clone();
                     FieldFuture::new(async move {
                         let parent = ctx.parent_value.as_value()
@@ -79,8 +80,8 @@ pub(crate) fn build_table_object(
                         let val_str = gql_value_to_sql_string(&local_val);
                         let cast = if foreign_int { "::int" } else { "" };
                         let mut sql = format!(
-                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1{}",
-                            rel_table, foreign_field, cast
+                            "SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t.{}), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1{}",
+                            related_pk, rel_table, foreign_field, cast
                         );
                         let mut params = vec![val_str];
                         if let Ok(identity) = ctx.data::<Identity>() {
