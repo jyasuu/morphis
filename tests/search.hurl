@@ -61,3 +61,53 @@ HTTP 200
 jsonpath "$.data.searchMaterials" count == 1
 jsonpath "$.data.searchMaterials[0].mat_no" == "M001"
 jsonpath "$.data.searchMaterials[0].status" == "active"
+
+# Paging: limit returns fewer results
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(query: \"\", limit: 1) { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+
+# Paging: limit of 2 on all results
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(query: \"\", limit: 2) { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 2
+
+# Paging: first page with limit 2, offset 0 = items 0-1
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(query: \"\", limit: 2, offset: 0) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 2
+
+# Paging: second page with offset past first page
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(query: \"\", limit: 2, offset: 2) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+
+# Paging: offset beyond total returns empty
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(query: \"\", limit: 10, offset: 100) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 0

@@ -27,7 +27,8 @@ pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig)
                         let query_str = ctx.args.get("query").and_then(|v| v.string().ok().map(String::from)).unwrap_or_default();
                         let filter = ctx.args.get("filter");
                         let limit = ctx.args.get("limit").and_then(|v| v.u64().ok()).map(|n| n as usize).unwrap_or(50);
-                        let results = es_search(&app_ctx.pool, &es_client, &es_url, &idx_cfg, &query_str, filter.as_ref(), limit).await?;
+                        let offset = ctx.args.get("offset").and_then(|v| v.u64().ok()).map(|n| n as usize).unwrap_or(0);
+                        let results = es_search(&app_ctx.pool, &es_client, &es_url, &idx_cfg, &query_str, filter.as_ref(), limit, offset).await?;
                         let items: Vec<FieldValue> = results.into_iter().map(|r| FieldValue::value(gql_val(r))).collect();
                         Ok(Some(FieldValue::list(items)))
                     })
@@ -35,7 +36,8 @@ pub(crate) fn add_search_field(mut query: Object, index_cfg: &SearchIndexConfig)
             )
             .argument(InputValue::new("query", TypeRef::named(TypeRef::STRING)))
             .argument(InputValue::new("filter", TypeRef::named(format!("{}SearchFilter", capitalize_first(&index_cfg.index)))))
-            .argument(InputValue::new("limit", TypeRef::named(TypeRef::INT))),
+            .argument(InputValue::new("limit", TypeRef::named(TypeRef::INT)))
+            .argument(InputValue::new("offset", TypeRef::named(TypeRef::INT))),
         );
     query
 }
@@ -48,6 +50,7 @@ async fn es_search(
     query_str: &str,
     filters: Option<&ValueAccessor<'_>>,
     limit: usize,
+    offset: usize,
 ) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
     let all_searchable = collect_searchable_fields(index_cfg);
     let must_clauses = build_es_filter(filters, &all_searchable);
@@ -58,10 +61,13 @@ async fn es_search(
         bool_body["should"] = serde_json::json!([{ "multi_match": { "query": query_str, "fields": all_searchable, "type": "cross_fields" } }]);
         bool_body["minimum_should_match"] = serde_json::json!(1);
     }
-    let es_query = serde_json::json!({
+    let mut es_query = serde_json::json!({
         "query": { "bool": bool_body },
         "size": limit
     });
+    if offset > 0 {
+        es_query["from"] = serde_json::json!(offset);
+    }
 
     let url = format!("{}/{}/_search", es_url.trim_end_matches('/'), index_cfg.index);
     let resp = es_client
