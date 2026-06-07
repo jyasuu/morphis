@@ -15,15 +15,15 @@ export function useTheme() {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("morphis-theme");
-    if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      setDark(true);
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
+    setDark(shouldBeDark);
+    if (shouldBeDark) {
       document.documentElement.classList.add("dark");
     }
-    setMounted(true);
   }, []);
 
   function toggle() {
@@ -33,10 +33,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       document.documentElement.classList.toggle("dark", next);
       return next;
     });
-  }
-
-  if (!mounted) {
-    return <>{children}</>;
   }
 
   return (

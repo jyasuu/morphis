@@ -5,7 +5,6 @@ import { GraphQLProvider } from "@/lib/client";
 import { ToastContainer } from "@/components/toast";
 import { NavBar } from "@/components/nav-bar";
 import { ThemeProvider } from "@/components/theme-provider";
-import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,13 +30,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
     >
-      <head>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`(function(){try{var e=localStorage.getItem("morphis-theme");if(e==="dark"||(!e&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}catch(e){}})()`}
-        </Script>
-      </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <GraphQLProvider>

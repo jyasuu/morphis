@@ -23,6 +23,29 @@
   --skeleton-to: #f4f4f5;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #18181b;
+    --foreground: #f4f4f5;
+    --brand: #14b8a6;
+    --brand-light: #2dd4bf;
+    --brand-dark: #0d9488;
+    --brand-bg: #042f2e;
+
+    --surface: #27272a;
+    --muted: #3f3f46;
+    --hover: #52525b;
+    --border: #3f3f46;
+    --border-light: #27272a;
+    --text: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --skeleton-from: #3f3f46;
+    --skeleton-to: #52525b;
+  }
+}
+
 .dark {
   --background: #18181b;
   --foreground: #f4f4f5;
