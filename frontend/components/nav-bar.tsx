@@ -5,8 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getEntityNames } from "@/lib/schema";
 import { ThemeToggle } from "./theme-toggle";
+import { useT } from "@/lib/i18n";
 
 export function NavBar() {
+  const t = useT();
   const [entities, setEntities] = useState<string[]>([]);
   const pathname = usePathname();
 
@@ -45,7 +47,7 @@ export function NavBar() {
                       : "text-[var(--text-secondary)] hover:bg-[var(--muted)]"
                   }`}
                 >
-                  {name}
+                  {t.entity(name)}
                 </Link>
               );
             })}

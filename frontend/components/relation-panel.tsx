@@ -124,7 +124,7 @@ export function RelationPanel({
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-medium">{field.name}</h3>
+        <h3 className="text-lg font-medium">{t.field(entity.name, field.name)}</h3>
         {relatedPerms?.create !== false && (
           <button
             onClick={() => {
@@ -156,7 +156,7 @@ export function RelationPanel({
       <Modal
         isOpen={modalOpen === "create"}
         onClose={() => setModalOpen(null)}
-        title={t("relationPanel.newTitle", { name: relatedEntity.name })}
+        title={t("relationPanel.newTitle", { name: t.entity(relatedEntity.name) })}
       >
         <DynamicForm
           entity={relatedEntity}
@@ -172,7 +172,7 @@ export function RelationPanel({
           setModalOpen(null);
           setEditingRecord(null);
         }}
-        title={t("relationPanel.editTitle", { name: relatedEntity.name })}
+        title={t("relationPanel.editTitle", { name: t.entity(relatedEntity.name) })}
       >
         {editingRecord && (
           <DynamicForm

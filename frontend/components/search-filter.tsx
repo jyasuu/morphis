@@ -28,7 +28,7 @@ export function SearchFilter({ entityName, fields, onFilter }: Props) {
         if (ctrl.control === "select" && ctrl.options) {
           return (
             <div key={f.name} className="flex-1 min-w-[140px]">
-              <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{f.name}</label>
+              <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{t.field(entityName, f.name)}</label>
               <select
                 value={values[f.name] ?? ""}
                 onChange={(e) => handleChange(f.name, e.target.value)}
@@ -45,12 +45,12 @@ export function SearchFilter({ entityName, fields, onFilter }: Props) {
 
         return (
           <div key={f.name} className="flex-1 min-w-[140px]">
-            <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{f.name}</label>
+            <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{t.field(entityName, f.name)}</label>
             <input
               type="text"
               value={values[f.name] ?? ""}
               onChange={(e) => handleChange(f.name, e.target.value)}
-              placeholder={f.name}
+              placeholder={t.field(entityName, f.name)}
               className="w-full border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--surface)]"
             />
           </div>

@@ -38,8 +38,8 @@ export default function Home() {
               href={`/${name}`}
               className="block border border-[var(--border)] rounded-xl p-5 bg-[var(--surface)] shadow-sm hover:shadow-md hover:border-[#0d9488]/40 transition-all"
             >
-              <span className="font-semibold text-[var(--text)] capitalize">{name.replace(/_/g, " ")}</span>
-              <p className="text-xs text-[var(--text-muted)] mt-1">{t("home.manage", { name })}</p>
+              <span className="font-semibold text-[var(--text)]">{t.entity(name)}</span>
+              <p className="text-xs text-[var(--text-muted)] mt-1">{t("home.manage", { name: t.entity(name) })}</p>
             </Link>
           ))}
         </div>

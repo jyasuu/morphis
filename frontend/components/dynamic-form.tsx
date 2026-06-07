@@ -53,7 +53,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
       return (
         <div key={fieldName}>
           <label htmlFor={id} className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            {fieldName}
+            {t.field(entity.name, fieldName)}
             {!f.nullable && <span className="text-red-500 ml-1">*</span>}
           </label>
           <select
@@ -80,7 +80,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
     return (
       <div key={fieldName}>
         <label htmlFor={id} className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-          {fieldName}
+          {t.field(entity.name, fieldName)}
           {!f.nullable && <span className="text-red-500 ml-1">*</span>}
         </label>
         <input

@@ -83,5 +83,31 @@
   "theme": {
     "switchToLight": "Switch to light mode",
     "switchToDark": "Switch to dark mode"
+  },
+  "entity": {
+    "materials": "Materials",
+    "colorways": "Colorways",
+    "feature_attributes": "Feature Attributes",
+    "material_features": "Material Features",
+    "sizes": "Sizes"
+  },
+  "field": {
+    "materials": {
+      "mat_no": "Mat. No.",
+      "name": "Name",
+      "status": "Status"
+    },
+    "colorways": {
+      "name": "Name"
+    },
+    "feature_attributes": {
+      "name": "Name"
+    },
+    "material_features": {
+      "name": "Name"
+    },
+    "sizes": {
+      "name": "Name"
+    }
   }
 }

@@ -190,9 +190,9 @@ function EntityListContent({
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entity.name }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entity.name) }]} />
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">{entity.name}</h1>
+        <h1 className="text-2xl font-semibold">{t.entity(entity.name)}</h1>
         {perms.create && (
           <button
             onClick={() => router.push(`/${entityName}/new`)}
@@ -207,7 +207,7 @@ function EntityListContent({
         <div className="mb-4 space-y-3">
           <SearchBar
             onSearch={setSearchQuery}
-            placeholder={t("list.search", { name: entity.name })}
+            placeholder={t("list.search", { name: t.entity(entity.name) })}
           />
           <FilterComponent
             entityName={entityName}
@@ -294,8 +294,8 @@ export default function EntityListPage() {
   if (notFound) {
     return (
       <div>
-        <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName }]} />
-        <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: entityName, id: "" })} />
+        <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName) }]} />
+        <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: t.entity(entityName), id: "" })} />
       </div>
     );
   }

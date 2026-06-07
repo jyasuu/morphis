@@ -18,7 +18,7 @@ function resolve(obj: Messages, path: string): string {
 }
 
 export function useT() {
-  return (path: string, params?: Record<string, string | number>): string => {
+  const t = (path: string, params?: Record<string, string | number>): string => {
     let msg = resolve(messages, path);
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -27,4 +27,16 @@ export function useT() {
     }
     return msg;
   };
+
+  t.entity = (raw: string): string => {
+    const translated = t(`entity.${raw}`);
+    return translated !== `entity.${raw}` ? translated : raw.replace(/_/g, " ");
+  };
+
+  t.field = (entityName: string, fieldName: string): string => {
+    const translated = t(`field.${entityName}.${fieldName}`);
+    return translated !== `field.${entityName}.${fieldName}` ? translated : fieldName;
+  };
+
+  return t;
 }

@@ -69,16 +69,16 @@ function EntityDetailContent({
     | undefined;
 
   if (!record) {
-    return <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: entityName, id })} />;
+    return <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: t.entity(entityName), id })} />;
   }
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName, href: `/${entityName}` }, { label: id }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName), href: `/${entityName}` }, { label: id }]} />
       <div className="space-y-6">
         <Card>
           <h1 className="text-xl font-semibold mb-1">
-            {entityName}: {String(record[entity.primaryKey] ?? id)}
+            {t.entity(entityName)}: {String(record[entity.primaryKey] ?? id)}
           </h1>
           {perms.update ? (
             <>
@@ -94,7 +94,7 @@ function EntityDetailContent({
             <div className="text-sm text-[var(--text-secondary)] space-y-1">
               {entity.fields.filter((f) => f.kind === "scalar" && !f.autoIncrement).map((f) => (
                 <div key={f.name} className="flex gap-2">
-                  <span className="font-medium text-[var(--text-secondary)] min-w-[120px]">{f.name}</span>
+                  <span className="font-medium text-[var(--text-secondary)] min-w-[120px]">{t.field(entity.name, f.name)}</span>
                   <span>{String(record[f.name] ?? "")}</span>
                 </div>
               ))}

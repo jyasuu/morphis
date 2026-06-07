@@ -22,7 +22,7 @@ test.describe("Full CRUD flow", () => {
 
     // Check the page loaded
     const body = await page.textContent("body");
-    expect(body).toContain("New materials");
+    expect(body).toContain("New Materials");
 
     // 2. Fill in the create form
     // Find inputs by their labels

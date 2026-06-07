@@ -45,14 +45,15 @@ function nextId() {
 function buildFieldDefs(
   entityName: string,
   filterFields: { name: string; scalarType: string }[],
-  relationFilters: RelationFilterMeta[]
+  relationFilters: RelationFilterMeta[],
+  tf: (entity: string, field: string) => string
 ): FilterFieldDef[] {
   const defs: FilterFieldDef[] = [];
   for (const f of filterFields) {
     const ctrl = getFieldControl(entityName, f.name);
     defs.push({
       key: `direct:${f.name}`,
-      label: f.name,
+      label: tf(entityName, f.name),
       kind: "direct",
       operators: ["equals", "contains"],
       control: ctrl.control,
@@ -144,7 +145,7 @@ export function AdvancedFilter({
   onFilterChange,
 }: Props) {
   const t = useT();
-  const fieldDefs = buildFieldDefs(entityName, filterFields, relationFilters);
+  const fieldDefs = buildFieldDefs(entityName, filterFields, relationFilters, t.field);
   const defaultLogic = relationFilters[0]?.defaultLogic ?? "and";
   const [logic, setLogic] = useState<"and" | "or">(defaultLogic);
   const [rows, setRows] = useState<FilterRowState[]>([]);

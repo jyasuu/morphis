@@ -69,7 +69,7 @@ export function DynamicTable({
                   onClick={() => onSort?.(f.name)}
                 >
                   <span className="inline-flex items-center gap-1">
-                    {f.name}
+                    {t.field(entity.name, f.name)}
                     {sortField === f.name && (
                       <Icon name={sortDir === "asc" ? "chevron-up" : "chevron-down"} className="w-3 h-3" />
                     )}

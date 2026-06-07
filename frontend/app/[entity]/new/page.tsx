@@ -42,9 +42,9 @@ function EntityCreateContent({
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName, href: `/${entityName}` }, { label: t("breadcrumbs.new") }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName), href: `/${entityName}` }, { label: t("breadcrumbs.new") }]} />
       <Card>
-        <h1 className="text-xl font-semibold mb-1">{t("create.title", { name: entityName })}</h1>
+        <h1 className="text-xl font-semibold mb-1">{t("create.title", { name: t.entity(entityName) })}</h1>
         <p className="text-xs text-[var(--text-muted)] mb-4">{t("create.subtitle")}</p>
         <DynamicForm entity={entity} mode="create" onSubmit={handleSubmit} />
       </Card>
