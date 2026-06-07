@@ -5,6 +5,7 @@ import { useState } from "react";
 import { getFieldControl } from "@/lib/metadata";
 import { showToast } from "./toast";
 import { Card } from "./card";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   entity: EntityInfo;
@@ -24,6 +25,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
     }
     return v;
   });
+  const t = useT();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
     try {
       await onSubmit(values);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Submission failed";
+      const msg = err instanceof Error ? err.message : t("form.submissionFailed");
       setError(msg);
       showToast(msg, "error");
     } finally {
@@ -50,7 +52,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
     if (ctrl.control === "select" && ctrl.options) {
       return (
         <div key={fieldName}>
-          <label htmlFor={id} className="block text-sm font-medium text-zinc-700 mb-1">
+          <label htmlFor={id} className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             {fieldName}
             {!f.nullable && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -62,9 +64,9 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
               setValues((prev) => ({ ...prev, [fieldName]: e.target.value }))
             }
             required={!f.nullable}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--surface)]"
           >
-            <option value="">{f.nullable ? "--" : "-- Select --"}</option>
+            <option value="">{f.nullable ? t("form.emptyOption") : t("form.selectOption")}</option>
             {ctrl.options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -77,7 +79,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
 
     return (
       <div key={fieldName}>
-        <label htmlFor={id} className="block text-sm font-medium text-zinc-700 mb-1">
+        <label htmlFor={id} className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
           {fieldName}
           {!f.nullable && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -90,7 +92,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
             setValues((prev) => ({ ...prev, [fieldName]: e.target.value }))
           }
           required={!f.nullable}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--surface)]"
         />
       </div>
     );
@@ -108,7 +110,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
           disabled={submitting}
           className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e] disabled:opacity-50"
         >
-          {submitting ? "Saving..." : mode === "create" ? "Create" : "Update"}
+          {submitting ? t("form.saving") : mode === "create" ? t("form.create") : t("form.update")}
         </button>
       </form>
     </Card>

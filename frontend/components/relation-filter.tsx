@@ -47,7 +47,7 @@ export function RelationFilter({ filter, onSelect }: Props) {
 
   return (
     <div className="flex-1">
-      <label className="block text-xs text-zinc-500 mb-1">{filter.label}</label>
+      <label className="block text-xs text-[var(--text-secondary)] mb-1">{filter.label}</label>
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
           <label
@@ -55,7 +55,7 @@ export function RelationFilter({ filter, onSelect }: Props) {
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm cursor-pointer border transition-colors ${
               checked.has(opt)
                 ? "bg-[#0d9488]/10 border-[#0d9488] text-[#0d9488]"
-                : "bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                : "bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:bg-[var(--muted)]"
             }`}
           >
             <input

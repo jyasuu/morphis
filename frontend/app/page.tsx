@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { getEntityNames } from "@/lib/schema";
 import Link from "next/link";
 import { Skeleton } from "@/components/skeleton";
+import { useT } from "@/lib/i18n";
 
 export default function Home() {
+  const t = useT();
   const [entities, setEntities] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,11 +20,11 @@ export default function Home() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-6">Entities</h1>
+      <h1 className="text-2xl font-semibold mb-6">{t("home.title")}</h1>
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="border border-zinc-200 rounded-xl p-5 bg-white shadow-sm">
+              <div key={i} className="border border-[var(--border)] rounded-xl p-5 bg-[var(--surface)] shadow-sm">
               <Skeleton className="h-5 w-28" />
               <Skeleton className="h-3 w-20 mt-2" />
             </div>
@@ -34,10 +36,10 @@ export default function Home() {
             <Link
               key={name}
               href={`/${name}`}
-              className="block border border-zinc-200 rounded-xl p-5 bg-white shadow-sm hover:shadow-md hover:border-[#0d9488]/40 transition-all"
+              className="block border border-[var(--border)] rounded-xl p-5 bg-[var(--surface)] shadow-sm hover:shadow-md hover:border-[#0d9488]/40 transition-all"
             >
-              <span className="font-semibold text-zinc-800 capitalize">{name.replace(/_/g, " ")}</span>
-              <p className="text-xs text-zinc-400 mt-1">Manage {name}</p>
+              <span className="font-semibold text-[var(--text)] capitalize">{name.replace(/_/g, " ")}</span>
+              <p className="text-xs text-[var(--text-muted)] mt-1">{t("home.manage", { name })}</p>
             </Link>
           ))}
         </div>

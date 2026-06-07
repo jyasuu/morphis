@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/skeleton";
 import { Icon } from "@/components/icon";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useT } from "@/lib/i18n";
 
 const PAGE_SIZE = 10;
 
@@ -52,6 +53,7 @@ function EntityListContent({
   entityName: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [advFilter, setAdvFilter] = useState<{
     query: string;
@@ -167,14 +169,13 @@ function EntityListContent({
   );
 
   async function handleDelete(pk: string) {
-    const ok = await confirm.confirm("Delete record", "Are you sure you want to delete this record?");
+    const ok = await confirm.confirm(t("confirm.defaultTitle"), t("confirm.defaultMessage"));
     if (!ok) return;
     const res = await deleteMut({ id: pk });
     if (res.error) {
-      showToast(`Delete failed: ${res.error.message}`, "error");
+      showToast(t("toast.deleteFailed", { msg: res.error.message }), "error");
     } else {
-      showToast("Deleted successfully");
-      reexecute({ requestPolicy: "network-only" });
+      showToast(t("toast.deleteSuccess"));
     }
   }
 
@@ -189,7 +190,7 @@ function EntityListContent({
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entity.name }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entity.name }]} />
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">{entity.name}</h1>
         {perms.create && (
@@ -197,7 +198,7 @@ function EntityListContent({
             onClick={() => router.push(`/${entityName}/new`)}
             className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e]"
           >
-            + New
+            {t("list.new")}
           </button>
         )}
       </div>
@@ -206,7 +207,7 @@ function EntityListContent({
         <div className="mb-4 space-y-3">
           <SearchBar
             onSearch={setSearchQuery}
-            placeholder={`Search ${entity.name}...`}
+            placeholder={t("list.search", { name: entity.name })}
           />
           <FilterComponent
             entityName={entityName}
@@ -241,24 +242,24 @@ function EntityListContent({
           loading={result.fetching || andedLoading}
         />
 
-        {!isSearching && (
-          <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-zinc-100">
+          {!isSearching && (
+          <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-[var(--border-light)]">
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+              className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] disabled:opacity-30 hover:bg-[var(--muted)] hover:border-[var(--hover)] transition-colors"
             >
-              <Icon name="chevron-left" className="w-4 h-4" /> Previous
+              <Icon name="chevron-left" className="w-4 h-4" /> {t("list.previous")}
             </button>
-            <span className="inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 text-sm font-medium text-zinc-700 bg-zinc-100 rounded-lg">
-              Page {page + 1}
+            <span className="inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 text-sm font-medium text-[var(--text)] bg-[var(--muted)] rounded-lg">
+              {t("list.page", { n: page + 1 })}
             </span>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={!hasMore}
-              className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+              className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] disabled:opacity-30 hover:bg-[var(--muted)] hover:border-[var(--hover)] transition-colors"
             >
-              Next <Icon name="chevron-right" className="w-4 h-4" />
+              {t("list.next")} <Icon name="chevron-right" className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -271,6 +272,7 @@ function EntityListContent({
 export default function EntityListPage() {
   const params = useParams();
   const entityName = params.entity as string;
+  const t = useT();
 
   const [entity, setEntity] = useState<EntityInfo | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -292,8 +294,8 @@ export default function EntityListPage() {
   if (notFound) {
     return (
       <div>
-        <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entityName }]} />
-        <EmptyState icon="search" title="Not Found" description={`Entity "${entityName}" does not exist`} />
+        <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName }]} />
+        <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: entityName, id: "" })} />
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { StatusBadge } from "./status-badge";
 import { EmptyState } from "./empty-state";
 import { TableSkeleton } from "./skeleton";
 import { Icon } from "./icon";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   entity: EntityInfo;
@@ -36,6 +37,7 @@ export function DynamicTable({
   perm,
   loading,
 }: Props) {
+  const t = useT();
   const scalarFields = entity.fields.filter((f) => f.kind === "scalar");
   const hiddenFields = new Set(entity.autoIncrementFields);
 
@@ -45,24 +47,24 @@ export function DynamicTable({
 
   if (data.length === 0) {
     return (
-      <div className="border-b border-zinc-100">
-        <EmptyState title="No records found" description="Try adjusting your search or filters" />
+      <div className="border-b border-[var(--border-light)]">
+        <EmptyState title={t("list.noRecords")} description={t("list.noRecordsHint")} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto border rounded-lg">
+    <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="bg-zinc-100 border-b">
+          <tr className="bg-[var(--muted)] border-b border-[var(--border)]">
             {scalarFields
               .filter((f) => !hiddenFields.has(f.name))
               .map((f) => (
                 <th
                   key={f.name}
-                  className={`text-left px-4 py-2 font-medium text-zinc-600 ${
-                    onSort ? "cursor-pointer hover:bg-zinc-200 select-none" : ""
+                  className={`text-left px-4 py-2 font-medium text-[var(--text-secondary)] ${
+                    onSort ? "cursor-pointer hover:bg-[var(--hover)] select-none" : ""
                   }`}
                   onClick={() => onSort?.(f.name)}
                 >
@@ -74,8 +76,8 @@ export function DynamicTable({
                   </span>
                 </th>
               ))}
-            <th className="px-4 py-2 font-medium text-zinc-600 text-right">
-              Actions
+            <th className="px-4 py-2 font-medium text-[var(--text-secondary)] text-right">
+              {t("table.actions")}
             </th>
           </tr>
         </thead>
@@ -83,9 +85,9 @@ export function DynamicTable({
           {data.map((record, i) => (
             <tr
               key={pkValue(record) || i}
-              className={`border-b last:border-0 ${
+              className={`border-b border-[var(--border)] last:border-0 ${
                 onRowClick ? "cursor-pointer" : ""
-              } hover:bg-zinc-100 even:bg-zinc-50/50`}
+              } hover:bg-[var(--muted)] even:bg-[var(--surface)] odd:bg-[var(--surface)]`}
               onClick={() => onRowClick?.(pkValue(record))}
             >
               {scalarFields
@@ -94,7 +96,7 @@ export function DynamicTable({
                   const ctrl = getFieldControl(entity.name, f.name);
                   const isSelect = ctrl.control === "select" && ctrl.options;
                   return (
-                    <td key={f.name} className="px-4 py-2 text-zinc-800">
+                    <td key={f.name} className="px-4 py-2 text-[var(--text)]">
                       {isSelect ? (
                         <StatusBadge value={String(record[f.name] ?? "")} />
                       ) : (
@@ -107,9 +109,9 @@ export function DynamicTable({
                 {onView && (
                   <button
                     onClick={() => onView(pkValue(record))}
-                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors mr-1"
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-[var(--muted)] text-[var(--text-secondary)] hover:bg-[var(--hover)] transition-colors mr-1"
                   >
-                    View
+                    {t("table.view")}
                   </button>
                 )}
                 {perm?.update !== false && onEdit && (
@@ -117,7 +119,7 @@ export function DynamicTable({
                     onClick={() => onEdit(pkValue(record))}
                     className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-[#0d9488]/10 text-[#0d9488] hover:bg-[#0d9488]/20 transition-colors mr-1"
                   >
-                    Edit
+                    {t("table.edit")}
                   </button>
                 )}
                 {perm?.delete !== false && onDelete && (
@@ -125,7 +127,7 @@ export function DynamicTable({
                     onClick={() => onDelete(pkValue(record))}
                     className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                   >
-                    Delete
+                    {t("table.delete")}
                   </button>
                 )}
               </td>

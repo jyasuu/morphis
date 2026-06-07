@@ -36,8 +36,8 @@ export function ToastContainer() {
     <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-2 fade-in duration-200">
       <div
         className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm text-white shadow-lg ${
-          toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-        }`}
+           toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+         }`}
       >
         <Icon name={toast.type === "success" ? "check" : "x"} className="w-4 h-4" />
         <span>{toast.message}</span>

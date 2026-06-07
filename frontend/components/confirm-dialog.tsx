@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "./icon";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -18,12 +19,15 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = "Delete",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   danger = true,
   onConfirm,
   onCancel,
 }: Props) {
+  const t = useT();
+  const confirmText = confirmLabel ?? t("confirm.confirm");
+  const cancelText = cancelLabel ?? t("confirm.cancel");
   useEffect(() => {
     if (!open) return;
     function handler(e: KeyboardEvent) {
@@ -38,15 +42,15 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 animate-in zoom-in-95 duration-150">
-        <h3 className="text-base font-semibold text-zinc-800 mb-2">{title}</h3>
-        <p className="text-sm text-zinc-500 mb-5">{message}</p>
+      <div className="relative bg-[var(--surface)] rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 animate-in zoom-in-95 duration-150">
+        <h3 className="text-base font-semibold text-[var(--text)] mb-2">{title}</h3>
+        <p className="text-sm text-[var(--text-secondary)] mb-5">{message}</p>
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--muted)] transition-colors"
           >
-            {cancelLabel}
+            {cancelText}
           </button>
           <button
             onClick={onConfirm}
@@ -56,7 +60,7 @@ export function ConfirmDialog({
                 : "bg-[#0d9488] hover:bg-[#0f766e]"
             }`}
           >
-            {confirmLabel}
+            {confirmText}
           </button>
         </div>
       </div>

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/skeleton";
 import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useT } from "@/lib/i18n";
 
 function EntityCreateContent({
   entity,
@@ -21,6 +22,7 @@ function EntityCreateContent({
   entityName: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const createMutation = buildCreateMutation(entity);
   const [, createMut] = useMutation(createMutation);
 
@@ -34,16 +36,16 @@ function EntityCreateContent({
     }
     const res = await createMut({ input });
     if (res.error) throw new Error(res.error.message);
-    showToast("Created successfully");
+    showToast(t("create.created"));
     router.push(`/${entityName}`);
   }
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entityName, href: `/${entityName}` }, { label: "New" }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName, href: `/${entityName}` }, { label: t("breadcrumbs.new") }]} />
       <Card>
-        <h1 className="text-xl font-semibold mb-1">New {entityName}</h1>
-        <p className="text-xs text-zinc-400 mb-4">Create a new record</p>
+        <h1 className="text-xl font-semibold mb-1">{t("create.title", { name: entityName })}</h1>
+        <p className="text-xs text-[var(--text-muted)] mb-4">{t("create.subtitle")}</p>
         <DynamicForm entity={entity} mode="create" onSubmit={handleSubmit} />
       </Card>
     </div>

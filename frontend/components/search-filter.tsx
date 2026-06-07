@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getFieldControl } from "@/lib/metadata";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   entityName: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function SearchFilter({ entityName, fields, onFilter }: Props) {
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>({});
 
   function handleChange(name: string, value: string) {
@@ -26,13 +28,13 @@ export function SearchFilter({ entityName, fields, onFilter }: Props) {
         if (ctrl.control === "select" && ctrl.options) {
           return (
             <div key={f.name} className="flex-1 min-w-[140px]">
-              <label className="block text-xs text-zinc-500 mb-0.5">{f.name}</label>
+              <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{f.name}</label>
               <select
                 value={values[f.name] ?? ""}
                 onChange={(e) => handleChange(f.name, e.target.value)}
-                className="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--surface)]"
               >
-                <option value="">All</option>
+                <option value="">{t("searchFilter.all")}</option>
                 {ctrl.options.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -43,13 +45,13 @@ export function SearchFilter({ entityName, fields, onFilter }: Props) {
 
         return (
           <div key={f.name} className="flex-1 min-w-[140px]">
-            <label className="block text-xs text-zinc-500 mb-0.5">{f.name}</label>
+            <label className="block text-xs text-[var(--text-secondary)] mb-0.5">{f.name}</label>
             <input
               type="text"
               value={values[f.name] ?? ""}
               onChange={(e) => handleChange(f.name, e.target.value)}
               placeholder={f.name}
-              className="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--surface)]"
             />
           </div>
         );

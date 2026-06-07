@@ -3,11 +3,11 @@
 const defaultColorMap: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700 border-emerald-300",
   discontinued: "bg-red-100 text-red-700 border-red-300",
-  inactive: "bg-zinc-100 text-zinc-600 border-zinc-300",
+  inactive: "bg-[var(--muted)] text-[var(--text-secondary)] border-[var(--border)]",
   yes: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  no: "bg-zinc-100 text-zinc-600 border-zinc-300",
+  no: "bg-[var(--muted)] text-[var(--text-secondary)] border-[var(--border)]",
   true: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  false: "bg-zinc-100 text-zinc-600 border-zinc-300",
+  false: "bg-[var(--muted)] text-[var(--text-secondary)] border-[var(--border)]",
 };
 
 interface Props {

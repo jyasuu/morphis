@@ -5,6 +5,7 @@ import { useQuery } from "urql";
 import { getFieldControl } from "@/lib/metadata";
 import type { RelationFilterMeta } from "@/lib/metadata";
 import { Icon } from "./icon";
+import { useT } from "@/lib/i18n";
 
 interface FilterRowState {
   id: string;
@@ -120,7 +121,7 @@ function RelationValueSelect({
           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-sm cursor-pointer border transition-colors ${
             selected.has(opt)
               ? "bg-[#0d9488]/10 border-[#0d9488] text-[#0d9488]"
-              : "bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+              : "bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:bg-[var(--muted)]"
           }`}
         >
           <input
@@ -142,6 +143,7 @@ export function AdvancedFilter({
   relationFilters,
   onFilterChange,
 }: Props) {
+  const t = useT();
   const fieldDefs = buildFieldDefs(entityName, filterFields, relationFilters);
   const defaultLogic = relationFilters[0]?.defaultLogic ?? "and";
   const [logic, setLogic] = useState<"and" | "or">(defaultLogic);
@@ -226,21 +228,21 @@ export function AdvancedFilter({
   return (
     <div className="space-y-2">
       {rows.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500 mb-2">
-          <span>Match</span>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] mb-2">
+          <span>{t("advancedFilter.match")}</span>
           <button
             onClick={toggleLogic}
             className="font-semibold text-[#0d9488] hover:text-[#0f766e] uppercase tracking-wide"
           >
             {logic}
           </button>
-          <span>of the following:</span>
+          <span>{t("advancedFilter.ofFollowing")}</span>
           {hasAnyFilter && (
             <button
               onClick={clearAll}
               className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
             >
-              <Icon name="x" className="w-3 h-3" /> Clear all
+              <Icon name="x" className="w-3 h-3" /> {t("advancedFilter.clearAll")}
             </button>
           )}
         </div>
@@ -259,7 +261,7 @@ export function AdvancedFilter({
                   value: "",
                 })
               }
-              className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
+              className="border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm bg-[var(--surface)] min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
             >
               {fieldDefs.map((d) => (
                 <option key={d.key} value={d.key}>
@@ -273,11 +275,11 @@ export function AdvancedFilter({
               onChange={(e) =>
                 updateRow(row.id, { operator: e.target.value as any })
               }
-              className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[90px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
+              className="border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm bg-[var(--surface)] min-w-[90px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
             >
               {(def?.operators ?? ["equals"]).map((op) => (
                 <option key={op} value={op}>
-                  {op === "equals" ? "=" : op === "contains" ? "contains" : "has"}
+                  {op === "equals" ? t("advancedFilter.equals") : op === "contains" ? t("advancedFilter.contains") : t("advancedFilter.has")}
                 </option>
               ))}
             </select>
@@ -293,7 +295,7 @@ export function AdvancedFilter({
               <select
                 value={row.value}
                 onChange={(e) => updateRow(row.id, { value: e.target.value })}
-                className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
+                className="border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm bg-[var(--surface)] min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
               >
                 <option value="">--</option>
                 {def.options.map((o) => (
@@ -307,14 +309,14 @@ export function AdvancedFilter({
                 type="text"
                 value={row.value}
                 onChange={(e) => updateRow(row.id, { value: e.target.value })}
-                placeholder="value"
-                className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
+                placeholder={t("advancedFilter.value")}
+                className="border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
               />
             )}
 
             <button
               onClick={() => removeRow(row.id)}
-              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 transition-colors"
             >
               <Icon name="x" className="w-4 h-4" />
             </button>
@@ -326,7 +328,7 @@ export function AdvancedFilter({
         onClick={addRow}
         className="inline-flex items-center gap-1 text-sm text-[#0d9488] hover:text-[#0f766e] px-2 py-1 rounded-md hover:bg-[#0d9488]/5 transition-colors"
       >
-        + Add filter
+        {t("advancedFilter.addFilter")}
       </button>
     </div>
   );

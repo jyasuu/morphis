@@ -1,0 +1,87 @@
+{
+  "nav": {
+    "title": "Morphis Admin"
+  },
+  "home": {
+    "title": "Entities",
+    "manage": "Manage {name}"
+  },
+  "breadcrumbs": {
+    "entities": "Entities",
+    "new": "New"
+  },
+  "list": {
+    "new": "+ New",
+    "search": "Search {name}...",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {n}",
+    "noRecords": "No records found",
+    "noRecordsHint": "Try adjusting your search or filters"
+  },
+  "detail": {
+    "editRecord": "Edit record",
+    "related": "Related",
+    "recordNotFound": "Record not found",
+    "recordNotFoundDesc": "No {entity} with ID \"{id}\" exists"
+  },
+  "create": {
+    "title": "New {name}",
+    "subtitle": "Create a new record",
+    "created": "Created successfully"
+  },
+  "table": {
+    "actions": "Actions",
+    "view": "View",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "form": {
+    "emptyOption": "--",
+    "selectOption": "-- Select --",
+    "saving": "Saving...",
+    "create": "Create",
+    "update": "Update",
+    "submissionFailed": "Submission failed"
+  },
+  "searchFilter": {
+    "all": "All"
+  },
+  "relationPanel": {
+    "new": "+ New",
+    "newTitle": "New {name}",
+    "editTitle": "Edit {name}",
+    "deleteTitle": "Delete record",
+    "deleteMessage": "Are you sure you want to delete this record?",
+    "created": "Created successfully",
+    "updated": "Updated successfully",
+    "deleted": "Deleted successfully",
+    "deleteFailed": "Delete failed: {msg}",
+    "updatedFailed": "Update failed: {msg}",
+    "createdFailed": "Create failed: {msg}"
+  },
+  "advancedFilter": {
+    "match": "Match",
+    "ofFollowing": "of the following:",
+    "clearAll": "Clear all",
+    "equals": "=",
+    "contains": "contains",
+    "has": "has",
+    "value": "value",
+    "addFilter": "+ Add filter"
+  },
+  "confirm": {
+    "confirm": "Delete",
+    "cancel": "Cancel",
+    "defaultTitle": "Delete record",
+    "defaultMessage": "Are you sure you want to delete this record?"
+  },
+  "toast": {
+    "deleteSuccess": "Deleted successfully",
+    "deleteFailed": "Delete failed: {msg}"
+  },
+  "theme": {
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
+  }
+}

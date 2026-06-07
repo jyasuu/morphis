@@ -10,6 +10,7 @@ import { Modal } from "./modal";
 import { showToast } from "./toast";
 import { getPermissions } from "@/lib/metadata";
 import { ConfirmDialog } from "./confirm-dialog";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   entity: EntityInfo;
@@ -34,6 +35,7 @@ export function RelationPanel({
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | null>(null);
   const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const t = useT();
 
   const relatedEntity = entityLookup(field.relatedEntity!);
   const relatedPk = relatedEntity?.primaryKey ?? "id";
@@ -59,7 +61,7 @@ export function RelationPanel({
     }
     const res = await createMut({ input });
     if (res.error) throw new Error(res.error.message);
-    showToast("Created successfully");
+    showToast(t("relationPanel.created"));
     setModalOpen(null);
     onMutation();
   }
@@ -77,7 +79,7 @@ export function RelationPanel({
     if (!pk) return;
     const res = await updateMut({ id: String(pk), input });
     if (res.error) throw new Error(res.error.message);
-    showToast("Updated successfully");
+    showToast(t("relationPanel.updated"));
     setModalOpen(null);
     setEditingRecord(null);
     onMutation();
@@ -92,9 +94,9 @@ export function RelationPanel({
     const res = await deleteMut({ id: deleteTarget });
     setDeleteTarget(null);
     if (res.error) {
-      showToast(`Delete failed: ${res.error.message}`, "error");
+      showToast(t("relationPanel.deleteFailed", { msg: res.error.message }), "error");
     } else {
-      showToast("Deleted successfully");
+      showToast(t("relationPanel.deleted"));
       onMutation();
     }
   }
@@ -131,7 +133,7 @@ export function RelationPanel({
             }}
             className="text-sm bg-[#0d9488] text-white px-3 py-1 rounded-lg hover:bg-[#0f766e]"
           >
-            + New
+            {t("relationPanel.new")}
           </button>
         )}
       </div>
@@ -154,7 +156,7 @@ export function RelationPanel({
       <Modal
         isOpen={modalOpen === "create"}
         onClose={() => setModalOpen(null)}
-        title={`New ${relatedEntity.name}`}
+        title={t("relationPanel.newTitle", { name: relatedEntity.name })}
       >
         <DynamicForm
           entity={relatedEntity}
@@ -170,7 +172,7 @@ export function RelationPanel({
           setModalOpen(null);
           setEditingRecord(null);
         }}
-        title={`Edit ${relatedEntity.name}`}
+        title={t("relationPanel.editTitle", { name: relatedEntity.name })}
       >
         {editingRecord && (
           <DynamicForm
@@ -184,8 +186,8 @@ export function RelationPanel({
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete record"
-        message="Are you sure you want to delete this record?"
+        title={t("relationPanel.deleteTitle")}
+        message={t("relationPanel.deleteMessage")}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />

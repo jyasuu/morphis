@@ -15,6 +15,7 @@ import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
 import { getPermissions } from "@/lib/metadata";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useT } from "@/lib/i18n";
 
 function EntityDetailContent({
   entity,
@@ -26,6 +27,7 @@ function EntityDetailContent({
   id: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const detailQuery = buildDetailQuery(entity, getCachedEntity);
   const updateMutation = buildUpdateMutation(entity);
 
@@ -67,12 +69,12 @@ function EntityDetailContent({
     | undefined;
 
   if (!record) {
-    return <EmptyState icon="search" title="Record not found" description={`No ${entityName} with ID "${id}" exists`} />;
+    return <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: entityName, id })} />;
   }
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entityName, href: `/${entityName}` }, { label: id }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: entityName, href: `/${entityName}` }, { label: id }]} />
       <div className="space-y-6">
         <Card>
           <h1 className="text-xl font-semibold mb-1">
@@ -80,7 +82,7 @@ function EntityDetailContent({
           </h1>
           {perms.update ? (
             <>
-              <p className="text-xs text-zinc-400 mb-4">Edit record</p>
+              <p className="text-xs text-[var(--text-muted)] mb-4">{t("detail.editRecord")}</p>
               <DynamicForm
                 entity={entity}
                 initial={record}
@@ -89,10 +91,10 @@ function EntityDetailContent({
               />
             </>
           ) : (
-            <div className="text-sm text-zinc-600 space-y-1">
+            <div className="text-sm text-[var(--text-secondary)] space-y-1">
               {entity.fields.filter((f) => f.kind === "scalar" && !f.autoIncrement).map((f) => (
                 <div key={f.name} className="flex gap-2">
-                  <span className="font-medium text-zinc-500 min-w-[120px]">{f.name}</span>
+                  <span className="font-medium text-[var(--text-secondary)] min-w-[120px]">{f.name}</span>
                   <span>{String(record[f.name] ?? "")}</span>
                 </div>
               ))}
@@ -102,7 +104,7 @@ function EntityDetailContent({
 
         {hasManyFields.length > 0 && (
           <Card>
-            <h2 className="text-lg font-semibold mb-4">Related</h2>
+            <h2 className="text-lg font-semibold mb-4">{t("detail.related")}</h2>
             {hasManyFields.map((f) => {
               const relatedRecords = (record[f.name] as Record<string, unknown>[]) ?? [];
               return (
