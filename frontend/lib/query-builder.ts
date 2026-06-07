@@ -6,14 +6,20 @@ function capitalize(s: string): string {
 
 export function buildListQuery(
   entity: EntityInfo,
-  paginate?: { limit: number }
+  paginate?: { limit: number; sortField?: string; sortDir?: "asc" | "desc" }
 ): string {
   const scalarFields = entity.fields.filter((f) => f.kind === "scalar");
   const cols = scalarFields.map((f) => f.name).join("\n      ");
-  const args = paginate ? `(limit: $limit, offset: $offset)` : "";
-  const vars = paginate ? "($limit: Int, $offset: Int)" : "";
+  const pagArgs = paginate ? "limit: $limit, offset: $offset" : "";
+  const sortArgs =
+    paginate?.sortField ? `order_by: $order_by` : "";
+  const args = [pagArgs, sortArgs].filter(Boolean).join(", ");
+  const argsStr = args ? `(${args})` : "";
+  const vars = paginate
+    ? `($limit: Int, $offset: Int${paginate.sortField ? ", $order_by: String" : ""})`
+    : "";
   return `query ${capitalize(entity.name)}ListQuery${vars} {
-    ${entity.name}List${args} {
+    ${entity.name}List${argsStr} {
       ${cols}
     }
   }`;

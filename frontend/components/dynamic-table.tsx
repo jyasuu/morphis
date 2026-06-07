@@ -5,6 +5,7 @@ import { getFieldControl } from "@/lib/metadata";
 import { StatusBadge } from "./status-badge";
 import { EmptyState } from "./empty-state";
 import { TableSkeleton } from "./skeleton";
+import { Icon } from "./icon";
 
 interface Props {
   entity: EntityInfo;
@@ -13,6 +14,9 @@ interface Props {
   onEdit?: (pk: string) => void;
   onDelete?: (pk: string) => void;
   onView?: (pk: string) => void;
+  onSort?: (field: string) => void;
+  sortField?: string;
+  sortDir?: "asc" | "desc";
   perm?: { update?: boolean; delete?: boolean };
   loading?: boolean;
 }
@@ -24,6 +28,9 @@ export function DynamicTable({
   onEdit,
   onDelete,
   onView,
+  onSort,
+  sortField,
+  sortDir,
   perm,
   loading,
 }: Props) {
@@ -52,9 +59,17 @@ export function DynamicTable({
               .map((f) => (
                 <th
                   key={f.name}
-                  className="text-left px-4 py-2 font-medium text-zinc-600"
+                  className={`text-left px-4 py-2 font-medium text-zinc-600 ${
+                    onSort ? "cursor-pointer hover:bg-zinc-200 select-none" : ""
+                  }`}
+                  onClick={() => onSort?.(f.name)}
                 >
-                  {f.name}
+                  <span className="inline-flex items-center gap-1">
+                    {f.name}
+                    {sortField === f.name && (
+                      <Icon name={sortDir === "asc" ? "chevron-up" : "chevron-down"} className="w-3 h-3" />
+                    )}
+                  </span>
                 </th>
               ))}
             <th className="px-4 py-2 font-medium text-zinc-600 text-right">

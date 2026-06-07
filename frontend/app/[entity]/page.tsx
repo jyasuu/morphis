@@ -59,6 +59,8 @@ function EntityListContent({
     terms?: string[];
   }>({ query: "", filter: {} });
   const [page, setPage] = useState(0);
+  const [sortField, setSortField] = useState<string | undefined>();
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | undefined>();
   const [andedData, setAndedData] = useState<any[] | null>(null);
   const [andedLoading, setAndedLoading] = useState(false);
   const client = useClient();
@@ -80,14 +82,14 @@ function EntityListContent({
     ? null
     : isSearching
       ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
-      : buildListQuery(entity, { limit: PAGE_SIZE });
+      : buildListQuery(entity, { limit: PAGE_SIZE, sortField, sortDir });
   const listVars = isAndSearch
     ? {}
     : isSearching
       ? entity.searchFilterFields?.length
         ? { query: activeSearchQuery, filter: activeFilter }
         : { query: activeSearchQuery }
-      : { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+      : { limit: PAGE_SIZE, offset: page * PAGE_SIZE, ...(sortField ? { order_by: `${sortDir === "desc" ? "-" : ""}${sortField}` } : {}) };
 
   const [result, reexecute] = useQuery({
     query: listQuery ?? "query _ { __typename }",
@@ -175,6 +177,12 @@ function EntityListContent({
     }
   }
 
+  function handleSort(field: string) {
+    setSortField(field);
+    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    setPage(0);
+  }
+
   const perms = getPermissions(entityName);
   const hasMore = data.length >= PAGE_SIZE;
 
@@ -215,6 +223,9 @@ function EntityListContent({
           entity={entity}
           data={data}
           pkValue={pkValue}
+          onSort={handleSort}
+          sortField={sortField}
+          sortDir={sortDir}
           onView={(pk) =>
             router.push(`/${entityName}/${encodeURIComponent(pk)}`)
           }

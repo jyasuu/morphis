@@ -37,6 +37,12 @@ const icons = {
   "chevron-right": (
     <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
   ),
+  "chevron-up": (
+    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+  ),
+  "chevron-down": (
+    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 8.25 7.5 7.5 7.5-7.5" />
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;
