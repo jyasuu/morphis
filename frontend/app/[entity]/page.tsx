@@ -214,19 +214,21 @@ function EntityListContent({
         />
 
         {!isSearching && (
-          <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-zinc-100">
+          <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-zinc-100">
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
+              className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
             >
               &larr; Previous
             </button>
-            <span className="text-sm text-zinc-500">Page {page + 1}</span>
+            <span className="inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 text-sm font-medium text-zinc-700 bg-zinc-100 rounded-lg">
+              Page {page + 1}
+            </span>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={!hasMore}
-              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
+              className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
             >
               Next &rarr;
             </button>

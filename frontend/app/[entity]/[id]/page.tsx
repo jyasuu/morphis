@@ -9,6 +9,7 @@ import { buildDetailQuery, buildUpdateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
 import { RelationPanel } from "@/components/relation-panel";
 import { Card } from "@/components/card";
+import { EmptyState } from "@/components/empty-state";
 import { showToast } from "@/components/toast";
 
 function EntityDetailContent({
@@ -52,7 +53,7 @@ function EntityDetailContent({
   }, [reexecute]);
 
   if (result.fetching) {
-    return <div className="text-zinc-500 text-sm">Loading record...</div>;
+    return <div className="p-4"><div className="skeleton h-5 w-48 mb-3" /><div className="skeleton h-20 w-full" /></div>;
   }
 
   const record = (result.data as any)?.[entityName] as
@@ -60,7 +61,7 @@ function EntityDetailContent({
     | undefined;
 
   if (!record) {
-    return <div className="text-red-500 text-sm">Record not found.</div>;
+    return <EmptyState icon="🔍" title="Record not found" description={`No ${entityName} with ID "${id}" exists`} />;
   }
 
   return (

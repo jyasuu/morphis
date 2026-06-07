@@ -19,7 +19,7 @@ export function NavBar() {
         <Link href="/" className="text-lg font-semibold text-zinc-800 tracking-tight">
           Morphis Admin
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="flex items-center gap-1 text-sm overflow-x-auto flex-nowrap scrollbar-none ml-4">
           {entities.map((name) => {
             const active = pathname === `/${name}` || pathname.startsWith(`/${name}/`);
             return (

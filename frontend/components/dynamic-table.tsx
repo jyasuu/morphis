@@ -3,6 +3,8 @@
 import type { EntityInfo } from "@/lib/types";
 import { getFieldControl } from "@/lib/metadata";
 import { StatusBadge } from "./status-badge";
+import { EmptyState } from "./empty-state";
+import { TableSkeleton } from "./skeleton";
 
 interface Props {
   entity: EntityInfo;
@@ -25,17 +27,13 @@ export function DynamicTable({
   const hiddenFields = new Set(entity.autoIncrementFields);
 
   if (loading) {
-    return (
-      <div className="text-zinc-500 p-4 text-sm">
-        Loading...
-      </div>
-    );
+    return <div className="p-4"><TableSkeleton rows={6} cols={scalarFields.length} /></div>;
   }
 
   if (data.length === 0) {
     return (
-      <div className="text-zinc-400 p-4 text-sm border rounded-lg">
-        No records found.
+      <div className="border-b border-zinc-100">
+        <EmptyState title="No records found" description="Try adjusting your search or filters" />
       </div>
     );
   }
@@ -81,16 +79,16 @@ export function DynamicTable({
                     </td>
                   );
                 })}
-              <td className="px-4 py-2 text-right">
+              <td className="px-4 py-2 text-right whitespace-nowrap">
                 <button
                   onClick={() => onEdit?.(pkValue(record))}
-                  className="text-blue-600 hover:underline mr-3"
+                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors mr-2"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => onDelete?.(pkValue(record))}
-                  className="text-red-600 hover:underline"
+                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                 >
                   Delete
                 </button>
