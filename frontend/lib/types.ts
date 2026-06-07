@@ -4,6 +4,12 @@ export interface EntityInfo {
   primaryKey: string
   autoIncrementFields: string[]
   hasSearch: boolean
+  searchFilterFields?: SearchFilterFieldInfo[]
+}
+
+export interface SearchFilterFieldInfo {
+  name: string
+  scalarType: string
 }
 
 export interface FieldInfo {

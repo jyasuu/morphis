@@ -1,0 +1,59 @@
+"use client";
+
+import { useState } from "react";
+import { getFieldControl } from "@/lib/metadata";
+
+interface Props {
+  entityName: string;
+  fields: { name: string; scalarType: string }[];
+  onFilter: (filter: Record<string, string>) => void;
+}
+
+export function SearchFilter({ entityName, fields, onFilter }: Props) {
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  function handleChange(name: string, value: string) {
+    const next = { ...values, [name]: value };
+    setValues(next);
+    onFilter(next);
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {fields.map((f) => {
+        const ctrl = getFieldControl(entityName, f.name);
+
+        if (ctrl.control === "select" && ctrl.options) {
+          return (
+            <div key={f.name} className="flex-1 min-w-[140px]">
+              <label className="block text-xs text-zinc-500 mb-0.5">{f.name}</label>
+              <select
+                value={values[f.name] ?? ""}
+                onChange={(e) => handleChange(f.name, e.target.value)}
+                className="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">All</option>
+                {ctrl.options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          );
+        }
+
+        return (
+          <div key={f.name} className="flex-1 min-w-[140px]">
+            <label className="block text-xs text-zinc-500 mb-0.5">{f.name}</label>
+            <input
+              type="text"
+              value={values[f.name] ?? ""}
+              onChange={(e) => handleChange(f.name, e.target.value)}
+              placeholder={f.name}
+              className="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}

@@ -28,7 +28,7 @@ test.describe("Full CRUD flow", () => {
     // Find inputs by their labels
     await page.fill('input[name="mat_no"]', testMatNo);
     await page.fill('input[name="name"]', "E2E Test Material");
-    await page.fill('input[name="status"]', "active");
+    await page.selectOption('select[name="status"]', "active");
 
     // 3. Submit
     await page.click('button[type="submit"]');

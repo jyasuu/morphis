@@ -109,10 +109,24 @@ export function buildDeleteMutation(entity: EntityInfo): string {
   }`;
 }
 
-export function buildSearchQuery(entity: EntityInfo): string {
+export function buildSearchQuery(
+  entity: EntityInfo,
+  includeFilter?: boolean
+): string {
   const scalarFields = entity.fields.filter((f) => f.kind === "scalar");
   const cols = scalarFields.map((f) => f.name).join("\n      ");
   const cap = capitalize(entity.name);
+
+  if (includeFilter) {
+    const filterTypeName = `${cap}SearchFilter`;
+    const filterFields =
+      entity.searchFilterFields?.map((f) => f.name).join(", ") ?? "";
+    return `query ${cap}Search($query: String!, $filter: ${filterTypeName}) {
+    search${cap}(query: $query, filter: $filter) {
+      ${cols}
+    }
+  }`;
+  }
 
   return `query ${cap}Search($query: String!) {
     search${cap}(query: $query) {

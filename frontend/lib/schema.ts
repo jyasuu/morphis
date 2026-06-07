@@ -1,4 +1,4 @@
-import type { EntityInfo, FieldInfo } from "./types";
+import type { EntityInfo, FieldInfo, SearchFilterFieldInfo } from "./types";
 
 const introspectionQuery = `
   query IntrospectionQuery {
@@ -58,6 +58,17 @@ const introspectionQuery = `
                   name
                   kind
                 }
+              }
+            }
+          }
+          args {
+            name
+            type {
+              name
+              kind
+              ofType {
+                name
+                kind
               }
             }
           }
@@ -223,12 +234,40 @@ export async function loadSchema(): Promise<SchemaCache> {
         "id";
     }
 
+    const hasSearch = searchNames.has(cap) || searchNames.has(name);
+    let searchFilterFields: SearchFilterFieldInfo[] | undefined;
+
+    if (hasSearch) {
+      const searchFieldName = `search${cap}`;
+      const searchField = queryFields[searchFieldName];
+      if (searchField?.args) {
+        const filterArg = searchField.args.find(
+          (a: any) => a.name === "filter"
+        );
+        if (filterArg) {
+          const { namedType: filterTypeName } = unwrapType(filterArg.type);
+          if (filterTypeName) {
+            const filterType = typeMap[filterTypeName];
+            if (filterType?.inputFields) {
+              searchFilterFields = filterType.inputFields.map(
+                (f: any) => {
+                  const { namedType } = unwrapType(f.type);
+                  return { name: f.name, scalarType: namedType ?? "String" };
+                }
+              );
+            }
+          }
+        }
+      }
+    }
+
     entities[name] = {
       name,
       fields,
       primaryKey,
       autoIncrementFields,
-      hasSearch: searchNames.has(cap) || searchNames.has(name),
+      hasSearch,
+      searchFilterFields,
     };
   }
 

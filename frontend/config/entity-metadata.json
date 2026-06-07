@@ -1,0 +1,32 @@
+{
+  "controls": {
+    "materials": {
+      "status": {
+        "control": "select",
+        "options": [
+          { "label": "Active", "value": "active" },
+          { "label": "Discontinued", "value": "discontinued" }
+        ]
+      }
+    },
+    "feature_attributes": {
+      "attr_value": {
+        "control": "select",
+        "options": [
+          { "label": "Yes", "value": "yes" },
+          { "label": "No", "value": "no" }
+        ]
+      }
+    }
+  },
+  "relationFilters": {
+    "materials": [
+      {
+        "label": "Has feature",
+        "relationEntity": "material_features",
+        "field": "feature_name",
+        "displayField": "feature_name"
+      }
+    ]
+  }
+}

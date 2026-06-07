@@ -12,6 +12,9 @@ import {
 } from "@/lib/query-builder";
 import { DynamicTable } from "@/components/dynamic-table";
 import { SearchBar } from "@/components/search-bar";
+import { SearchFilter } from "@/components/search-filter";
+import { RelationFilter } from "@/components/relation-filter";
+import { getRelationFilters } from "@/lib/metadata";
 import { showToast } from "@/components/toast";
 
 const PAGE_SIZE = 10;
@@ -25,15 +28,21 @@ function EntityListContent({
 }) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState<Record<string, string> | null>(null);
+  const [relationFilterVal, setRelationFilterVal] = useState("");
   const [page, setPage] = useState(0);
 
-  const isSearching = entity.hasSearch && searchQuery.length > 0;
+  const relFilters = getRelationFilters(entityName);
+  const activeSearchQuery = relationFilterVal ? relationFilterVal : searchQuery;
+  const isSearching = entity.hasSearch && (activeSearchQuery.length > 0 || (searchFilter != null && Object.values(searchFilter).some(Boolean)));
 
   const listQuery = isSearching
-    ? buildSearchQuery(entity)
+    ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
     : buildListQuery(entity, { limit: PAGE_SIZE });
   const listVars = isSearching
-    ? { query: searchQuery }
+    ? entity.searchFilterFields?.length
+      ? { query: activeSearchQuery, filter: searchFilter ?? {} }
+      : { query: activeSearchQuery }
     : { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
   const [result, reexecute] = useQuery({
@@ -43,10 +52,10 @@ function EntityListContent({
 
   const [, deleteMut] = useMutation(buildDeleteMutation(entity));
 
-  // Reset page when search changes
+  // Reset page when search or filter changes
   useEffect(() => {
     setPage(0);
-  }, [searchQuery]);
+  }, [searchQuery, searchFilter, relationFilterVal]);
 
   const data = useMemo(() => {
     if (!result.data) return [];
@@ -90,11 +99,32 @@ function EntityListContent({
       </div>
 
       {entity.hasSearch && (
-        <div className="mb-4">
+        <div className="mb-4 space-y-3">
           <SearchBar
             onSearch={setSearchQuery}
             placeholder={`Search ${entity.name}...`}
           />
+          {entity.searchFilterFields && entity.searchFilterFields.length > 0 && (
+            <SearchFilter
+              entityName={entityName}
+              fields={entity.searchFilterFields}
+              onFilter={(f) => { setSearchFilter(f); setPage(0); }}
+            />
+          )}
+          {relFilters.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {relFilters.map((rf) => (
+                <RelationFilter
+                  key={`${rf.relationEntity}-${rf.field}`}
+                  filter={rf}
+                  onSelect={(val) => {
+                    setRelationFilterVal(val);
+                    setPage(0);
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

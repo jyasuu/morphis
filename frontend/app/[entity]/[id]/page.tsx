@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useQuery, useMutation } from "urql";
 import { useParams, useRouter } from "next/navigation";
 import type { EntityInfo } from "@/lib/types";
 import { getEntity, getCachedEntity } from "@/lib/schema";
 import { buildDetailQuery, buildUpdateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
+import { RelationPanel } from "@/components/relation-panel";
 import { showToast } from "@/components/toast";
 
 function EntityDetailContent({
@@ -22,12 +23,14 @@ function EntityDetailContent({
   const detailQuery = buildDetailQuery(entity, getCachedEntity);
   const updateMutation = buildUpdateMutation(entity);
 
-  const [result] = useQuery({
+  const [result, reexecute] = useQuery({
     query: detailQuery,
     variables: { id },
   });
 
   const [, updateMut] = useMutation(updateMutation);
+
+  const hasManyFields = entity.fields.filter((f) => f.kind === "has_many");
 
   async function handleSubmit(values: Record<string, string>) {
     const input: Record<string, unknown> = {};
@@ -42,6 +45,10 @@ function EntityDetailContent({
     showToast("Updated successfully");
     router.push(`/${entityName}`);
   }
+
+  const handleMutation = useCallback(() => {
+    reexecute({ requestPolicy: "network-only" });
+  }, [reexecute]);
 
   if (result.fetching) {
     return <div className="text-zinc-500 text-sm">Loading record...</div>;
@@ -74,6 +81,26 @@ function EntityDetailContent({
         mode="edit"
         onSubmit={handleSubmit}
       />
+
+      {hasManyFields.length > 0 && (
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-xl font-semibold mb-4">Related</h2>
+          {hasManyFields.map((f) => {
+            const relatedRecords = (record[f.name] as Record<string, unknown>[]) ?? [];
+            return (
+              <RelationPanel
+                key={f.name}
+                entity={entity}
+                field={f}
+                parentPkValue={String(record[entity.primaryKey] ?? id)}
+                records={relatedRecords}
+                entityLookup={getCachedEntity}
+                onMutation={handleMutation}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

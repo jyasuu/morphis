@@ -2,6 +2,7 @@
 
 import type { EntityInfo } from "@/lib/types";
 import { useState } from "react";
+import { getFieldControl } from "@/lib/metadata";
 import { showToast } from "./toast";
 
 interface Props {
@@ -40,29 +41,63 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
     }
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
-      {scalarFields.map((f) => (
-        <div key={f.name}>
-          <label htmlFor={f.name} className="block text-sm font-medium text-zinc-700 mb-1">
-            {f.name}
-            {!f.nullable && (
-              <span className="text-red-500 ml-1">*</span>
-            )}
+  function renderField(fieldName: string) {
+    const f = scalarFields.find((sf) => sf.name === fieldName)!;
+    const ctrl = getFieldControl(entity.name, fieldName);
+    const id = `field-${fieldName}`;
+
+    if (ctrl.control === "select" && ctrl.options) {
+      return (
+        <div key={fieldName}>
+          <label htmlFor={id} className="block text-sm font-medium text-zinc-700 mb-1">
+            {fieldName}
+            {!f.nullable && <span className="text-red-500 ml-1">*</span>}
           </label>
-          <input
-            type="text"
-            name={f.name}
-            id={f.name}
-            value={values[f.name]}
+          <select
+            name={fieldName}
+            id={id}
+            value={values[fieldName]}
             onChange={(e) =>
-              setValues((prev) => ({ ...prev, [f.name]: e.target.value }))
+              setValues((prev) => ({ ...prev, [fieldName]: e.target.value }))
             }
             required={!f.nullable}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">{f.nullable ? "--" : "-- Select --"}</option>
+            {ctrl.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
-      ))}
+      );
+    }
+
+    return (
+      <div key={fieldName}>
+        <label htmlFor={id} className="block text-sm font-medium text-zinc-700 mb-1">
+          {fieldName}
+          {!f.nullable && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <input
+          type="text"
+          name={fieldName}
+          id={id}
+          value={values[fieldName]}
+          onChange={(e) =>
+            setValues((prev) => ({ ...prev, [fieldName]: e.target.value }))
+          }
+          required={!f.nullable}
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+      {scalarFields.map((f) => renderField(f.name))}
       {error && (
         <div className="text-red-600 text-sm">{error}</div>
       )}
