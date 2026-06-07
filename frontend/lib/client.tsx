@@ -3,8 +3,7 @@
 import { createClient, fetchExchange, Provider } from "urql";
 import type { ReactNode } from "react";
 
-const apiUrl =
-  process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:4000/graphql";
+const apiUrl = "/api/graphql";
 
 export const client = createClient({
   url: apiUrl,

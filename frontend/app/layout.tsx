@@ -6,6 +6,7 @@ import { ToastContainer } from "@/components/toast";
 import { NavBar } from "@/components/nav-bar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LocaleProvider } from "@/components/locale-provider";
+import { SessionProvider } from "next-auth/react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,11 +36,13 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <LocaleProvider>
+            <SessionProvider>
             <GraphQLProvider>
               <NavBar />
               <main className="flex-1 px-6 py-6 max-w-6xl w-full mx-auto">{children}</main>
               <ToastContainer />
             </GraphQLProvider>
+            </SessionProvider>
           </LocaleProvider>
         </ThemeProvider>
       </body>

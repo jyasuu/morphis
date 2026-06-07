@@ -8,10 +8,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Run in cloud IDE (CodeSandbox, etc.) — polling mode avoids WebSocket HMR issues:
 ```bash
-NEXT_PUBLIC_GRAPHQL_URL=https://4vxy5k-4000.csb.app/graphql NEXT_HMR_POLL_INTERVAL=2000 npx next dev --port 3000
+AUTH_SECRET=dev-secret-do-not-use-in-prod AUTH_DISABLED=true NEXT_HMR_POLL_INTERVAL=2000 npx next dev --port 3000
 ```
 
-Replace `4vxy5k` with the current CodeSandbox workspace ID.
+For production, set `AUTH_SECRET`, `AUTH_ADMIN_PASSWORD`, and optionally
+`AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` + `AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET`.
+
+### Generic OIDC/OAuth2 (Keycloak, Azure AD, Okta, Auth0, etc.)
+
+Set `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET` to enable.
+Optionally set `AUTH_OIDC_NAME` (default: "SSO") for the button label.
+For the login page button visibility, also set `NEXT_PUBLIC_AUTH_OIDC_NAME` to the same value.
 
 ## Runtime i18n
 
