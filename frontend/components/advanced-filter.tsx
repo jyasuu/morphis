@@ -119,7 +119,7 @@ function RelationValueSelect({
           key={opt}
           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-sm cursor-pointer border transition-colors ${
             selected.has(opt)
-              ? "bg-blue-100 border-blue-400 text-blue-800"
+              ? "bg-[#0d9488]/10 border-[#0d9488] text-[#0d9488]"
               : "bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50"
           }`}
         >
@@ -230,7 +230,7 @@ export function AdvancedFilter({
           <span>Match</span>
           <button
             onClick={toggleLogic}
-            className="font-semibold text-blue-600 hover:text-blue-800 uppercase tracking-wide"
+            className="font-semibold text-[#0d9488] hover:text-[#0f766e] uppercase tracking-wide"
           >
             {logic}
           </button>
@@ -324,7 +324,7 @@ export function AdvancedFilter({
 
       <button
         onClick={addRow}
-        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
+        className="inline-flex items-center gap-1 text-sm text-[#0d9488] hover:text-[#0f766e] px-2 py-1 rounded-md hover:bg-[#0d9488]/5 transition-colors"
       >
         + Add filter
       </button>

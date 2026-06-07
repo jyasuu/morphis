@@ -54,7 +54,7 @@ export function RelationFilter({ filter, onSelect }: Props) {
             key={opt}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm cursor-pointer border transition-colors ${
               checked.has(opt)
-                ? "bg-blue-100 border-blue-400 text-blue-800"
+                ? "bg-[#0d9488]/10 border-[#0d9488] text-[#0d9488]"
                 : "bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50"
             }`}
           >

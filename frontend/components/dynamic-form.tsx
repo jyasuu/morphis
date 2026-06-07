@@ -106,7 +106,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
         <button
           type="submit"
           disabled={submitting}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+          className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e] disabled:opacity-50"
         >
           {submitting ? "Saving..." : mode === "create" ? "Create" : "Update"}
         </button>

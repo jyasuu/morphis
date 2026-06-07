@@ -195,7 +195,7 @@ function EntityListContent({
         {perms.create && (
           <button
             onClick={() => router.push(`/${entityName}/new`)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+            className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e]"
           >
             + New
           </button>

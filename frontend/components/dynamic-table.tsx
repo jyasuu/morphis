@@ -115,7 +115,7 @@ export function DynamicTable({
                 {perm?.update !== false && onEdit && (
                   <button
                     onClick={() => onEdit(pkValue(record))}
-                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors mr-1"
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-[#0d9488]/10 text-[#0d9488] hover:bg-[#0d9488]/20 transition-colors mr-1"
                   >
                     Edit
                   </button>

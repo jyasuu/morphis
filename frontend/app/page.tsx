@@ -34,7 +34,7 @@ export default function Home() {
             <Link
               key={name}
               href={`/${name}`}
-              className="block border border-zinc-200 rounded-xl p-5 bg-white shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
+              className="block border border-zinc-200 rounded-xl p-5 bg-white shadow-sm hover:shadow-md hover:border-[#0d9488]/40 transition-all"
             >
               <span className="font-semibold text-zinc-800 capitalize">{name.replace(/_/g, " ")}</span>
               <p className="text-xs text-zinc-400 mt-1">Manage {name}</p>

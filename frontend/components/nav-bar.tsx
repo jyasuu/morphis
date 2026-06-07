@@ -16,8 +16,19 @@ export function NavBar() {
   return (
     <header className="bg-white border-b border-zinc-200 shadow-sm">
       <div className="flex items-center justify-between px-6 h-12">
-        <Link href="/" className="text-lg font-semibold text-zinc-800 tracking-tight">
-          Morphis Admin
+        <Link href="/" className="flex items-center gap-2">
+          <svg
+            viewBox="0 0 32 32"
+            fill="none"
+            className="w-7 h-7"
+          >
+            <rect width="32" height="32" rx="6" fill="#0d9488" />
+            <path d="M8 12l8 10 8-10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M8 20l8-10 8 10" stroke="rgba(255,255,255,0.35)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-lg font-semibold text-[#0d9488] tracking-tight">
+            Morphis Admin
+          </span>
         </Link>
         <nav className="flex items-center gap-1 text-sm overflow-x-auto flex-nowrap scrollbar-none ml-4">
           {entities.map((name) => {
@@ -28,7 +39,7 @@ export function NavBar() {
                 href={`/${name}`}
                 className={`px-2.5 py-1 rounded-md transition-colors ${
                   active
-                    ? "bg-blue-100 text-blue-700 font-medium"
+                    ? "bg-[#0d9488]/10 text-[#0d9488] font-medium"
                     : "text-zinc-600 hover:bg-zinc-100"
                 }`}
               >

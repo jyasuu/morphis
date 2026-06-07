@@ -129,7 +129,7 @@ export function RelationPanel({
               setEditingRecord(null);
               setModalOpen("create");
             }}
-            className="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700"
+            className="text-sm bg-[#0d9488] text-white px-3 py-1 rounded-lg hover:bg-[#0f766e]"
           >
             + New
           </button>
