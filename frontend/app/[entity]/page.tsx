@@ -12,6 +12,7 @@ import {
 } from "@/lib/query-builder";
 import { DynamicTable } from "@/components/dynamic-table";
 import { SearchBar } from "@/components/search-bar";
+import { Card } from "@/components/card";
 import { getFilterComponent } from "@/components/filters/registry";
 import { getRelationFilters, getFilterComponentName } from "@/lib/metadata";
 import { showToast } from "@/components/toast";
@@ -200,36 +201,38 @@ function EntityListContent({
         </div>
       )}
 
-      <DynamicTable
-        entity={entity}
-        data={data}
-        pkValue={pkValue}
-        onEdit={(pk) =>
-          router.push(`/${entityName}/${encodeURIComponent(pk)}`)
-        }
-        onDelete={handleDelete}
-        loading={result.fetching || andedLoading}
-      />
+      <Card className="p-0 overflow-hidden">
+        <DynamicTable
+          entity={entity}
+          data={data}
+          pkValue={pkValue}
+          onEdit={(pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`)
+          }
+          onDelete={handleDelete}
+          loading={result.fetching || andedLoading}
+        />
 
-      {!isSearching && (
-        <div className="flex items-center justify-center gap-3 mt-4">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
-          >
-            &larr; Previous
-          </button>
-          <span className="text-sm text-zinc-500">Page {page + 1}</span>
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            disabled={!hasMore}
-            className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
-          >
-            Next &rarr;
-          </button>
-        </div>
-      )}
+        {!isSearching && (
+          <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-zinc-100">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
+            >
+              &larr; Previous
+            </button>
+            <span className="text-sm text-zinc-500">Page {page + 1}</span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore}
+              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-30 hover:bg-zinc-50"
+            >
+              Next &rarr;
+            </button>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

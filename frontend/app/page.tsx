@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getEntityNames } from "@/lib/schema";
 import Link from "next/link";
+import { Skeleton } from "@/components/skeleton";
 
 export default function Home() {
   const [entities, setEntities] = useState<string[]>([]);
@@ -17,18 +18,26 @@ export default function Home() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-4">Entities</h1>
+      <h1 className="text-2xl font-semibold mb-6">Entities</h1>
       {loading ? (
-        <p className="text-zinc-500 text-sm">Loading...</p>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="border border-zinc-200 rounded-xl p-5 bg-white shadow-sm">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-3 w-20 mt-2" />
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {entities.map((name) => (
             <Link
               key={name}
               href={`/${name}`}
-              className="block border rounded-lg px-4 py-3 hover:bg-zinc-50 hover:border-blue-300 transition-colors"
+              className="block border border-zinc-200 rounded-xl p-5 bg-white shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
             >
-              <span className="font-medium text-zinc-800">{name}</span>
+              <span className="font-semibold text-zinc-800 capitalize">{name.replace(/_/g, " ")}</span>
+              <p className="text-xs text-zinc-400 mt-1">Manage {name}</p>
             </Link>
           ))}
         </div>

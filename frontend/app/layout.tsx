@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { GraphQLProvider } from "@/lib/client";
 import { ToastContainer } from "@/components/toast";
+import { NavBar } from "@/components/nav-bar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,12 +32,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <GraphQLProvider>
-          <header className="border-b px-6 py-3">
-            <a href="/" className="text-lg font-semibold text-zinc-800">
-              Morphis Admin
-            </a>
-          </header>
-          <main className="flex-1 px-6 py-6">{children}</main>
+          <NavBar />
+          <main className="flex-1 px-6 py-6 max-w-6xl w-full mx-auto">{children}</main>
           <ToastContainer />
         </GraphQLProvider>
       </body>
