@@ -64,7 +64,7 @@ export function DynamicTable({
           {data.map((record, i) => (
             <tr
               key={pkValue(record) || i}
-              className="border-b last:border-0 hover:bg-zinc-50"
+              className="border-b last:border-0 hover:bg-zinc-100 even:bg-zinc-50/50"
             >
               {scalarFields
                 .filter((f) => !hiddenFields.has(f.name))

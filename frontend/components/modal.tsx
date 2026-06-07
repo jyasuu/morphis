@@ -13,17 +13,17 @@ export function Modal({ isOpen, onClose, title, children }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-150">
       <div
-        className="fixed inset-0 bg-black/40"
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
+          <h2 className="text-lg font-semibold text-zinc-800">{title}</h2>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 text-xl leading-none"
+            className="text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg p-1 transition-colors text-lg leading-none"
           >
             &times;
           </button>

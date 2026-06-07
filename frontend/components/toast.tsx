@@ -31,13 +31,18 @@ export function ToastContainer() {
 
   if (!toast) return null;
 
+  const icon = toast.type === "success" ? "✓" : "✕";
+
   return (
-    <div
-      className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg text-sm text-white shadow-lg transition-all z-50 ${
-        toast.type === "success" ? "bg-green-600" : "bg-red-600"
-      }`}
-    >
-      {toast.message}
+    <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-2 fade-in duration-200">
+      <div
+        className={`flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm text-white shadow-lg ${
+          toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+        }`}
+      >
+        <span className="text-base font-bold leading-none">{icon}</span>
+        <span>{toast.message}</span>
+      </div>
     </div>
   );
 }
