@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "urql";
 import type { RelationFilterMeta } from "@/lib/metadata";
 
 interface Props {
   filter: RelationFilterMeta;
-  onSelect: (query: string) => void;
+  onSelect: (values: string[]) => void;
 }
 
 function buildOptionsQuery(entityName: string, field: string): string {
@@ -18,7 +18,7 @@ function buildOptionsQuery(entityName: string, field: string): string {
 }
 
 export function RelationFilter({ filter, onSelect }: Props) {
-  const [selected, setSelected] = useState("");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const queryStr = buildOptionsQuery(filter.relationEntity, filter.field);
   const [result] = useQuery({ query: queryStr });
 
@@ -34,24 +34,40 @@ export function RelationFilter({ filter, onSelect }: Props) {
         .sort()
     : [];
 
-  function handleChange(value: string) {
-    setSelected(value);
-    onSelect(value);
+  function toggle(value: string) {
+    const next = new Set(checked);
+    if (next.has(value)) {
+      next.delete(value);
+    } else {
+      next.add(value);
+    }
+    setChecked(next);
+    onSelect([...next]);
   }
 
   return (
-    <div className="flex-1 min-w-[140px]">
-      <label className="block text-xs text-zinc-500 mb-0.5">{filter.label}</label>
-      <select
-        value={selected}
-        onChange={(e) => handleChange(e.target.value)}
-        className="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-      >
-        <option value="">All</option>
+    <div className="flex-1">
+      <label className="block text-xs text-zinc-500 mb-1">{filter.label}</label>
+      <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
+          <label
+            key={opt}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm cursor-pointer border transition-colors ${
+              checked.has(opt)
+                ? "bg-blue-100 border-blue-400 text-blue-800"
+                : "bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={checked.has(opt)}
+              onChange={() => toggle(opt)}
+              className="sr-only"
+            />
+            {opt}
+          </label>
         ))}
-      </select>
+      </div>
     </div>
   );
 }

@@ -10,9 +10,15 @@ export interface RelationFilterMeta {
   relationEntity: string;
   field: string;
   displayField: string;
+  defaultLogic?: "and" | "or";
 }
 
 interface ConfigFile {
+  defaultFilterComponent?: string;
+  entityOverrides?: Record<
+    string,
+    { filterComponent?: string }
+  >;
   controls: Record<string, Record<string, FieldControl>>;
   relationFilters: Record<string, RelationFilterMeta[]>;
 }
@@ -25,4 +31,12 @@ export function getFieldControl(entityName: string, fieldName: string): FieldCon
 
 export function getRelationFilters(entityName: string): RelationFilterMeta[] {
   return cfg.relationFilters?.[entityName] ?? [];
+}
+
+export function getFilterComponentName(entityName: string): string {
+  return (
+    cfg.entityOverrides?.[entityName]?.filterComponent ??
+    cfg.defaultFilterComponent ??
+    "advanced"
+  );
 }

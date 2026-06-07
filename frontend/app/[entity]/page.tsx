@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useQuery, useMutation } from "urql";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useQuery, useMutation, useClient } from "urql";
 import { useParams, useRouter } from "next/navigation";
 import type { EntityInfo } from "@/lib/types";
 import { getEntity, getEntityNames } from "@/lib/schema";
@@ -12,12 +12,31 @@ import {
 } from "@/lib/query-builder";
 import { DynamicTable } from "@/components/dynamic-table";
 import { SearchBar } from "@/components/search-bar";
-import { SearchFilter } from "@/components/search-filter";
-import { RelationFilter } from "@/components/relation-filter";
-import { getRelationFilters } from "@/lib/metadata";
+import { getFilterComponent } from "@/components/filters/registry";
+import { getRelationFilters, getFilterComponentName } from "@/lib/metadata";
 import { showToast } from "@/components/toast";
 
 const PAGE_SIZE = 10;
+
+function intersectByPk<T>(arrays: T[][], pk: string): T[] {
+  if (arrays.length === 0) return [];
+  const counts = new Map<string, { record: T; count: number }>();
+  for (const arr of arrays) {
+    const seen = new Set<string>();
+    for (const r of arr) {
+      const key = String((r as any)[pk]);
+      if (!seen.has(key)) {
+        seen.add(key);
+        const entry = counts.get(key) || { record: r, count: 0 };
+        entry.count++;
+        counts.set(key, entry);
+      }
+    }
+  }
+  return [...counts.values()]
+    .filter((e) => e.count === arrays.length)
+    .map((e) => e.record);
+}
 
 function EntityListContent({
   entity,
@@ -28,43 +47,108 @@ function EntityListContent({
 }) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchFilter, setSearchFilter] = useState<Record<string, string> | null>(null);
-  const [relationFilterVal, setRelationFilterVal] = useState("");
+  const [advFilter, setAdvFilter] = useState<{
+    query: string;
+    filter: Record<string, string>;
+    logic?: "and" | "or";
+    terms?: string[];
+  }>({ query: "", filter: {} });
   const [page, setPage] = useState(0);
+  const [andedData, setAndedData] = useState<any[] | null>(null);
+  const [andedLoading, setAndedLoading] = useState(false);
+  const client = useClient();
 
   const relFilters = getRelationFilters(entityName);
-  const activeSearchQuery = relationFilterVal ? relationFilterVal : searchQuery;
-  const isSearching = entity.hasSearch && (activeSearchQuery.length > 0 || (searchFilter != null && Object.values(searchFilter).some(Boolean)));
+  const FilterComponent = getFilterComponent(
+    getFilterComponentName(entityName)
+  );
+  const activeSearchQuery = advFilter.query || searchQuery;
+  const activeFilter = advFilter.filter;
+  const hasActiveFilter = Object.values(activeFilter).some(Boolean);
+  const isSearching =
+    entity.hasSearch &&
+    (activeSearchQuery.length > 0 || hasActiveFilter);
+  const isAndSearch = isSearching && advFilter.logic === "and" && (advFilter.terms?.length ?? 0) > 1;
 
-  const listQuery = isSearching
-    ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
-    : buildListQuery(entity, { limit: PAGE_SIZE });
-  const listVars = isSearching
-    ? entity.searchFilterFields?.length
-      ? { query: activeSearchQuery, filter: searchFilter ?? {} }
-      : { query: activeSearchQuery }
-    : { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+  const listQuery = isAndSearch
+    ? null
+    : isSearching
+      ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
+      : buildListQuery(entity, { limit: PAGE_SIZE });
+  const listVars = isAndSearch
+    ? {}
+    : isSearching
+      ? entity.searchFilterFields?.length
+        ? { query: activeSearchQuery, filter: activeFilter }
+        : { query: activeSearchQuery }
+      : { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
   const [result, reexecute] = useQuery({
-    query: listQuery,
+    query: listQuery ?? "query _ { __typename }",
     variables: listVars as any,
+    pause: listQuery === null,
   });
 
   const [, deleteMut] = useMutation(buildDeleteMutation(entity));
 
+  // Perform AND multi-search with client-side intersection
+  const searchQueryStr = useMemo(
+    () =>
+      entity.hasSearch
+        ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
+        : "",
+    [entity]
+  );
+  const prevAndKey = useRef("");
+  useEffect(() => {
+    if (!isAndSearch || !searchQueryStr) {
+      setAndedData(null);
+      setAndedLoading(false);
+      return;
+    }
+    const terms = advFilter.terms ?? [];
+    const andKey = terms.sort().join(",") + "|" + JSON.stringify(activeFilter);
+    if (andKey === prevAndKey.current) return;
+    prevAndKey.current = andKey;
+
+    setAndedLoading(true);
+    const queries = terms.map((term) =>
+      client
+        .query(
+          searchQueryStr,
+          entity.searchFilterFields?.length
+            ? { query: term, filter: activeFilter }
+            : { query: term }
+        )
+        .toPromise()
+    );
+    Promise.all(queries)
+      .then((responses) => {
+        const key = `search${entityName.charAt(0).toUpperCase() + entityName.slice(1)}`;
+        const results = responses.map(
+          (r) => (r.data as any)?.[key] || []
+        );
+        const intersected = intersectByPk(results, entity.primaryKey);
+        setAndedData(intersected);
+        setAndedLoading(false);
+      })
+      .catch(() => setAndedLoading(false));
+  }, [isAndSearch, advFilter, entity, client, searchQueryStr, entityName, activeFilter]);
+
   // Reset page when search or filter changes
   useEffect(() => {
     setPage(0);
-  }, [searchQuery, searchFilter, relationFilterVal]);
+  }, [searchQuery, advFilter]);
 
   const data = useMemo(() => {
+    if (isAndSearch) return andedData ?? [];
     if (!result.data) return [];
     if (isSearching) {
       const key = `search${entityName.charAt(0).toUpperCase() + entityName.slice(1)}`;
       return (result.data as any)?.[key] || [];
     }
     return (result.data as any)?.[`${entityName}List`] || [];
-  }, [result.data, isSearching, entityName]);
+  }, [result.data, isSearching, isAndSearch, andedData, entityName]);
 
   const pkValue = useCallback(
     (record: Record<string, unknown>): string => {
@@ -104,27 +188,15 @@ function EntityListContent({
             onSearch={setSearchQuery}
             placeholder={`Search ${entity.name}...`}
           />
-          {entity.searchFilterFields && entity.searchFilterFields.length > 0 && (
-            <SearchFilter
-              entityName={entityName}
-              fields={entity.searchFilterFields}
-              onFilter={(f) => { setSearchFilter(f); setPage(0); }}
-            />
-          )}
-          {relFilters.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {relFilters.map((rf) => (
-                <RelationFilter
-                  key={`${rf.relationEntity}-${rf.field}`}
-                  filter={rf}
-                  onSelect={(val) => {
-                    setRelationFilterVal(val);
-                    setPage(0);
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          <FilterComponent
+            entityName={entityName}
+            filterFields={entity.searchFilterFields ?? []}
+            relationFilters={relFilters}
+            onFilterChange={(f) => {
+              setAdvFilter(f);
+              setPage(0);
+            }}
+          />
         </div>
       )}
 
@@ -136,7 +208,7 @@ function EntityListContent({
           router.push(`/${entityName}/${encodeURIComponent(pk)}`)
         }
         onDelete={handleDelete}
-        loading={result.fetching}
+        loading={result.fetching || andedLoading}
       />
 
       {!isSearching && (

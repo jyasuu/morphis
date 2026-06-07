@@ -1,4 +1,10 @@
 {
+  "defaultFilterComponent": "advanced",
+  "entityOverrides": {
+    "materials": {
+      "filterComponent": "advanced"
+    }
+  },
   "controls": {
     "materials": {
       "status": {
@@ -25,7 +31,8 @@
         "label": "Has feature",
         "relationEntity": "material_features",
         "field": "feature_name",
-        "displayField": "feature_name"
+        "displayField": "feature_name",
+        "defaultLogic": "and"
       }
     ]
   }
