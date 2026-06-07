@@ -226,6 +226,9 @@ function EntityListContent({
           onSort={handleSort}
           sortField={sortField}
           sortDir={sortDir}
+          onRowClick={(pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`)
+          }
           onView={(pk) =>
             router.push(`/${entityName}/${encodeURIComponent(pk)}`)
           }

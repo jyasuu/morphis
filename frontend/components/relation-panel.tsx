@@ -140,6 +140,7 @@ export function RelationPanel({
         entity={relatedEntity}
         data={records}
         pkValue={pkValue}
+        onRowClick={onView ? (pk) => onView(relatedEntity.name, pk) : undefined}
         onView={onView ? (pk) => onView(relatedEntity.name, pk) : undefined}
         onEdit={relatedPerms?.update !== false ? (pk) => {
           const rec = records.find((r) => String(r[relatedPk]) === pk) ?? null;

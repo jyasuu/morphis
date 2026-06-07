@@ -14,6 +14,7 @@ interface Props {
   onEdit?: (pk: string) => void;
   onDelete?: (pk: string) => void;
   onView?: (pk: string) => void;
+  onRowClick?: (pk: string) => void;
   onSort?: (field: string) => void;
   sortField?: string;
   sortDir?: "asc" | "desc";
@@ -29,6 +30,7 @@ export function DynamicTable({
   onDelete,
   onView,
   onSort,
+  onRowClick,
   sortField,
   sortDir,
   perm,
@@ -81,7 +83,10 @@ export function DynamicTable({
           {data.map((record, i) => (
             <tr
               key={pkValue(record) || i}
-              className="border-b last:border-0 hover:bg-zinc-100 even:bg-zinc-50/50"
+              className={`border-b last:border-0 ${
+                onRowClick ? "cursor-pointer" : ""
+              } hover:bg-zinc-100 even:bg-zinc-50/50`}
+              onClick={() => onRowClick?.(pkValue(record))}
             >
               {scalarFields
                 .filter((f) => !hiddenFields.has(f.name))
@@ -98,7 +103,7 @@ export function DynamicTable({
                     </td>
                   );
                 })}
-              <td className="px-4 py-2 text-right whitespace-nowrap">
+              <td className="px-4 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                 {onView && (
                   <button
                     onClick={() => onView(pkValue(record))}
