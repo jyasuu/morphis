@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Icon } from "./icon";
 
 interface Props {
@@ -11,6 +11,15 @@ interface Props {
 }
 
 export function Modal({ isOpen, onClose, title, children }: Props) {
+  useEffect(() => {
+    if (!isOpen) return;
+    function handler(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (

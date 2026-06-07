@@ -11,6 +11,7 @@ import { Card } from "@/components/card";
 import { Skeleton } from "@/components/skeleton";
 import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 function EntityCreateContent({
   entity,
@@ -39,14 +40,7 @@ function EntityCreateContent({
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => router.push(`/${entityName}`)}
-          className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
-        >
-          <Icon name="arrow-left" className="w-4 h-4" /> Back to {entityName}
-        </button>
-      </div>
+      <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entityName, href: `/${entityName}` }, { label: "New" }]} />
       <Card>
         <h1 className="text-xl font-semibold mb-1">New {entityName}</h1>
         <p className="text-xs text-zinc-400 mb-4">Create a new record</p>

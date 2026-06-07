@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { Icon } from "@/components/icon";
 import { useConfirm } from "@/components/confirm-dialog";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 const PAGE_SIZE = 10;
 
@@ -188,6 +189,7 @@ function EntityListContent({
 
   return (
     <div>
+      <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entity.name }]} />
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">{entity.name}</h1>
         {perms.create && (
@@ -290,9 +292,7 @@ export default function EntityListPage() {
   if (notFound) {
     return (
       <div>
-        <a href="/" className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 mb-4 transition-colors">
-          <Icon name="arrow-left" className="w-4 h-4" /> Back to entities
-        </a>
+        <Breadcrumbs segments={[{ label: "Entities", href: "/" }, { label: entityName }]} />
         <EmptyState icon="search" title="Not Found" description={`Entity "${entityName}" does not exist`} />
       </div>
     );
