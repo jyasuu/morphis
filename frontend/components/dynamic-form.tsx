@@ -4,6 +4,7 @@ import type { EntityInfo } from "@/lib/types";
 import { useState } from "react";
 import { getFieldControl } from "@/lib/metadata";
 import { showToast } from "./toast";
+import { Card } from "./card";
 
 interface Props {
   entity: EntityInfo;
@@ -96,18 +97,20 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
-      {scalarFields.map((f) => renderField(f.name))}
-      {error && (
-        <div className="text-red-600 text-sm">{error}</div>
-      )}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-      >
-        {submitting ? "Saving..." : mode === "create" ? "Create" : "Update"}
-      </button>
-    </form>
+    <Card>
+      <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+        {scalarFields.map((f) => renderField(f.name))}
+        {error && (
+          <div className="text-red-600 text-sm">{error}</div>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {submitting ? "Saving..." : mode === "create" ? "Create" : "Update"}
+        </button>
+      </form>
+    </Card>
   );
 }

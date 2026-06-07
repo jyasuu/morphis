@@ -8,6 +8,7 @@ import { getEntity, getCachedEntity } from "@/lib/schema";
 import { buildDetailQuery, buildUpdateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
 import { RelationPanel } from "@/components/relation-panel";
+import { Card } from "@/components/card";
 import { showToast } from "@/components/toast";
 
 function EntityDetailContent({
@@ -72,35 +73,40 @@ function EntityDetailContent({
           &larr; Back to {entityName}
         </button>
       </div>
-      <h1 className="text-2xl font-semibold mb-4">
-        {entityName}: {String(record[entity.primaryKey] ?? id)}
-      </h1>
-      <DynamicForm
-        entity={entity}
-        initial={record}
-        mode="edit"
-        onSubmit={handleSubmit}
-      />
+      <div className="space-y-6">
+        <Card>
+          <h1 className="text-xl font-semibold mb-1">
+            {entityName}: {String(record[entity.primaryKey] ?? id)}
+          </h1>
+          <p className="text-xs text-zinc-400 mb-4">Edit record</p>
+          <DynamicForm
+            entity={entity}
+            initial={record}
+            mode="edit"
+            onSubmit={handleSubmit}
+          />
+        </Card>
 
-      {hasManyFields.length > 0 && (
-        <div className="mt-8 border-t pt-6">
-          <h2 className="text-xl font-semibold mb-4">Related</h2>
-          {hasManyFields.map((f) => {
-            const relatedRecords = (record[f.name] as Record<string, unknown>[]) ?? [];
-            return (
-              <RelationPanel
-                key={f.name}
-                entity={entity}
-                field={f}
-                parentPkValue={String(record[entity.primaryKey] ?? id)}
-                records={relatedRecords}
-                entityLookup={getCachedEntity}
-                onMutation={handleMutation}
-              />
-            );
-          })}
-        </div>
-      )}
+        {hasManyFields.length > 0 && (
+          <Card>
+            <h2 className="text-lg font-semibold mb-4">Related</h2>
+            {hasManyFields.map((f) => {
+              const relatedRecords = (record[f.name] as Record<string, unknown>[]) ?? [];
+              return (
+                <RelationPanel
+                  key={f.name}
+                  entity={entity}
+                  field={f}
+                  parentPkValue={String(record[entity.primaryKey] ?? id)}
+                  records={relatedRecords}
+                  entityLookup={getCachedEntity}
+                  onMutation={handleMutation}
+                />
+              );
+            })}
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

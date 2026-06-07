@@ -1,6 +1,8 @@
 "use client";
 
 import type { EntityInfo } from "@/lib/types";
+import { getFieldControl } from "@/lib/metadata";
+import { StatusBadge } from "./status-badge";
 
 interface Props {
   entity: EntityInfo;
@@ -66,11 +68,19 @@ export function DynamicTable({
             >
               {scalarFields
                 .filter((f) => !hiddenFields.has(f.name))
-                .map((f) => (
-                  <td key={f.name} className="px-4 py-2 text-zinc-800">
-                    {String(record[f.name] ?? "")}
-                  </td>
-                ))}
+                .map((f) => {
+                  const ctrl = getFieldControl(entity.name, f.name);
+                  const isSelect = ctrl.control === "select" && ctrl.options;
+                  return (
+                    <td key={f.name} className="px-4 py-2 text-zinc-800">
+                      {isSelect ? (
+                        <StatusBadge value={String(record[f.name] ?? "")} />
+                      ) : (
+                        String(record[f.name] ?? "")
+                      )}
+                    </td>
+                  );
+                })}
               <td className="px-4 py-2 text-right">
                 <button
                   onClick={() => onEdit?.(pkValue(record))}

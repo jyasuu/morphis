@@ -7,6 +7,7 @@ import type { EntityInfo } from "@/lib/types";
 import { getEntity } from "@/lib/schema";
 import { buildCreateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
+import { Card } from "@/components/card";
 import { showToast } from "@/components/toast";
 
 function EntityCreateContent({
@@ -44,8 +45,11 @@ function EntityCreateContent({
           &larr; Back to {entityName}
         </button>
       </div>
-      <h1 className="text-2xl font-semibold mb-4">New {entityName}</h1>
-      <DynamicForm entity={entity} mode="create" onSubmit={handleSubmit} />
+      <Card>
+        <h1 className="text-xl font-semibold mb-1">New {entityName}</h1>
+        <p className="text-xs text-zinc-400 mb-4">Create a new record</p>
+        <DynamicForm entity={entity} mode="create" onSubmit={handleSubmit} />
+      </Card>
     </div>
   );
 }
