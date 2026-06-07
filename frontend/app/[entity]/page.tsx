@@ -14,7 +14,7 @@ import { DynamicTable } from "@/components/dynamic-table";
 import { SearchBar } from "@/components/search-bar";
 import { Card } from "@/components/card";
 import { getFilterComponent } from "@/components/filters/registry";
-import { getRelationFilters, getFilterComponentName } from "@/lib/metadata";
+import { getRelationFilters, getFilterComponentName, getPermissions } from "@/lib/metadata";
 import { showToast } from "@/components/toast";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
@@ -171,18 +171,21 @@ function EntityListContent({
     }
   }
 
+  const perms = getPermissions(entityName);
   const hasMore = data.length >= PAGE_SIZE;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">{entity.name}</h1>
-        <button
-          onClick={() => router.push(`/${entityName}/new`)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
-        >
-          + New
-        </button>
+        {perms.create && (
+          <button
+            onClick={() => router.push(`/${entityName}/new`)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+          >
+            + New
+          </button>
+        )}
       </div>
 
       {entity.hasSearch && (
@@ -208,10 +211,13 @@ function EntityListContent({
           entity={entity}
           data={data}
           pkValue={pkValue}
-          onEdit={(pk) =>
+          onView={(pk) =>
             router.push(`/${entityName}/${encodeURIComponent(pk)}`)
           }
-          onDelete={handleDelete}
+          onEdit={perms.update ? (pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`) : undefined}
+          onDelete={perms.delete ? handleDelete : undefined}
+          perm={{ update: perms.update, delete: perms.delete }}
           loading={result.fetching || andedLoading}
         />
 

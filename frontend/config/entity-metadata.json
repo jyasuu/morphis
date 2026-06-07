@@ -1,5 +1,12 @@
 {
   "defaultFilterComponent": "advanced",
+  "defaultPermissions": {
+    "list": true,
+    "create": true,
+    "read": true,
+    "update": true,
+    "delete": true
+  },
   "entityOverrides": {
     "materials": {
       "filterComponent": "advanced"

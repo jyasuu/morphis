@@ -12,6 +12,8 @@ interface Props {
   pkValue: (record: Record<string, unknown>) => string;
   onEdit?: (pk: string) => void;
   onDelete?: (pk: string) => void;
+  onView?: (pk: string) => void;
+  perm?: { update?: boolean; delete?: boolean };
   loading?: boolean;
 }
 
@@ -21,6 +23,8 @@ export function DynamicTable({
   pkValue,
   onEdit,
   onDelete,
+  onView,
+  perm,
   loading,
 }: Props) {
   const scalarFields = entity.fields.filter((f) => f.kind === "scalar");
@@ -80,18 +84,30 @@ export function DynamicTable({
                   );
                 })}
               <td className="px-4 py-2 text-right whitespace-nowrap">
-                <button
-                  onClick={() => onEdit?.(pkValue(record))}
-                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors mr-2"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => onDelete?.(pkValue(record))}
-                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                >
-                  Delete
-                </button>
+                {onView && (
+                  <button
+                    onClick={() => onView(pkValue(record))}
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors mr-1"
+                  >
+                    View
+                  </button>
+                )}
+                {perm?.update !== false && onEdit && (
+                  <button
+                    onClick={() => onEdit(pkValue(record))}
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors mr-1"
+                  >
+                    Edit
+                  </button>
+                )}
+                {perm?.delete !== false && onDelete && (
+                  <button
+                    onClick={() => onDelete(pkValue(record))}
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
               </td>
             </tr>
           ))}

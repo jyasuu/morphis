@@ -13,17 +13,36 @@ export interface RelationFilterMeta {
   defaultLogic?: "and" | "or";
 }
 
+export interface EntityPermissions {
+  list: boolean;
+  create: boolean;
+  read: boolean;
+  update: boolean;
+  delete: boolean;
+}
+
+interface EntityOverride {
+  filterComponent?: string;
+  permissions?: Partial<EntityPermissions>;
+}
+
 interface ConfigFile {
   defaultFilterComponent?: string;
-  entityOverrides?: Record<
-    string,
-    { filterComponent?: string }
-  >;
+  defaultPermissions?: Partial<EntityPermissions>;
+  entityOverrides?: Record<string, EntityOverride>;
   controls: Record<string, Record<string, FieldControl>>;
   relationFilters: Record<string, RelationFilterMeta[]>;
 }
 
 const cfg = config as ConfigFile;
+
+const defaultPerms: EntityPermissions = {
+  list: true,
+  create: true,
+  read: true,
+  update: true,
+  delete: true,
+};
 
 export function getFieldControl(entityName: string, fieldName: string): FieldControl {
   return cfg.controls?.[entityName]?.[fieldName] ?? { control: "text" };
@@ -39,4 +58,10 @@ export function getFilterComponentName(entityName: string): string {
     cfg.defaultFilterComponent ??
     "advanced"
   );
+}
+
+export function getPermissions(entityName: string): EntityPermissions {
+  const defaults = { ...defaultPerms, ...cfg.defaultPermissions };
+  const overrides = cfg.entityOverrides?.[entityName]?.permissions;
+  return overrides ? { ...defaults, ...overrides } : defaults;
 }

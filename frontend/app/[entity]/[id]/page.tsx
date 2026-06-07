@@ -12,6 +12,7 @@ import { Card } from "@/components/card";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { showToast } from "@/components/toast";
+import { getPermissions } from "@/lib/metadata";
 
 function EntityDetailContent({
   entity,
@@ -49,6 +50,8 @@ function EntityDetailContent({
     router.push(`/${entityName}`);
   }
 
+  const perms = getPermissions(entityName);
+
   const handleMutation = useCallback(() => {
     reexecute({ requestPolicy: "network-only" });
   }, [reexecute]);
@@ -80,13 +83,26 @@ function EntityDetailContent({
           <h1 className="text-xl font-semibold mb-1">
             {entityName}: {String(record[entity.primaryKey] ?? id)}
           </h1>
-          <p className="text-xs text-zinc-400 mb-4">Edit record</p>
-          <DynamicForm
-            entity={entity}
-            initial={record}
-            mode="edit"
-            onSubmit={handleSubmit}
-          />
+          {perms.update ? (
+            <>
+              <p className="text-xs text-zinc-400 mb-4">Edit record</p>
+              <DynamicForm
+                entity={entity}
+                initial={record}
+                mode="edit"
+                onSubmit={handleSubmit}
+              />
+            </>
+          ) : (
+            <div className="text-sm text-zinc-600 space-y-1">
+              {entity.fields.filter((f) => f.kind === "scalar" && !f.autoIncrement).map((f) => (
+                <div key={f.name} className="flex gap-2">
+                  <span className="font-medium text-zinc-500 min-w-[120px]">{f.name}</span>
+                  <span>{String(record[f.name] ?? "")}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         {hasManyFields.length > 0 && (
@@ -103,6 +119,7 @@ function EntityDetailContent({
                   records={relatedRecords}
                   entityLookup={getCachedEntity}
                   onMutation={handleMutation}
+                  onView={(relName, relPk) => router.push(`/${relName}/${encodeURIComponent(relPk)}`)}
                 />
               );
             })}

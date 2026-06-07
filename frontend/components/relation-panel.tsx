@@ -8,6 +8,7 @@ import { DynamicTable } from "./dynamic-table";
 import { DynamicForm } from "./dynamic-form";
 import { Modal } from "./modal";
 import { showToast } from "./toast";
+import { getPermissions } from "@/lib/metadata";
 
 interface Props {
   entity: EntityInfo;
@@ -16,6 +17,8 @@ interface Props {
   records: Record<string, unknown>[];
   entityLookup: (name: string) => EntityInfo | null;
   onMutation: () => void;
+  onView?: (entityName: string, pk: string) => void;
+  basePath?: string;
 }
 
 export function RelationPanel({
@@ -25,12 +28,15 @@ export function RelationPanel({
   records,
   entityLookup,
   onMutation,
+  onView,
 }: Props) {
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | null>(null);
   const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
 
   const relatedEntity = entityLookup(field.relatedEntity!);
   const relatedPk = relatedEntity?.primaryKey ?? "id";
+
+  const relatedPerms = relatedEntity ? getPermissions(relatedEntity.name) : null;
 
   const createMutation = relatedEntity ? buildCreateMutation(relatedEntity) : "";
   const updateMutation = relatedEntity ? buildUpdateMutation(relatedEntity) : "";
@@ -110,27 +116,31 @@ export function RelationPanel({
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-lg font-medium">{field.name}</h3>
-        <button
-          onClick={() => {
-            setEditingRecord(null);
-            setModalOpen("create");
-          }}
-          className="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700"
-        >
-          + New
-        </button>
+        {relatedPerms?.create !== false && (
+          <button
+            onClick={() => {
+              setEditingRecord(null);
+              setModalOpen("create");
+            }}
+            className="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700"
+          >
+            + New
+          </button>
+        )}
       </div>
 
       <DynamicTable
         entity={relatedEntity}
         data={records}
         pkValue={pkValue}
-        onEdit={(pk) => {
+        onView={onView ? (pk) => onView(relatedEntity.name, pk) : undefined}
+        onEdit={relatedPerms?.update !== false ? (pk) => {
           const rec = records.find((r) => String(r[relatedPk]) === pk) ?? null;
           setEditingRecord(rec);
           setModalOpen("edit");
-        }}
-        onDelete={handleDelete}
+        } : undefined}
+        onDelete={relatedPerms?.delete !== false ? handleDelete : undefined}
+        perm={{ update: relatedPerms?.update, delete: relatedPerms?.delete }}
       />
 
       <Modal
