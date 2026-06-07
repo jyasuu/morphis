@@ -8,6 +8,7 @@ import { getEntity } from "@/lib/schema";
 import { buildCreateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
 import { Card } from "@/components/card";
+import { Skeleton } from "@/components/skeleton";
 import { showToast } from "@/components/toast";
 
 function EntityCreateContent({
@@ -40,7 +41,7 @@ function EntityCreateContent({
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={() => router.push(`/${entityName}`)}
-          className="text-sm text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
         >
           &larr; Back to {entityName}
         </button>
@@ -65,7 +66,7 @@ export default function EntityCreatePage() {
   }, [entityName]);
 
   if (!entity) {
-    return <div className="text-zinc-500 text-sm">Loading...</div>;
+    return <div className="space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-6 w-48" /><Skeleton className="h-20 w-full max-w-lg" /></div>;
   }
 
   return (

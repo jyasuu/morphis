@@ -225,11 +225,11 @@ export function AdvancedFilter({
   return (
     <div className="space-y-2">
       {rows.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
+        <div className="flex items-center gap-2 text-xs text-zinc-500 mb-2">
           <span>Match</span>
           <button
             onClick={toggleLogic}
-            className="font-medium text-blue-600 hover:underline uppercase"
+            className="font-semibold text-blue-600 hover:text-blue-800 uppercase tracking-wide"
           >
             {logic}
           </button>
@@ -237,9 +237,9 @@ export function AdvancedFilter({
           {hasAnyFilter && (
             <button
               onClick={clearAll}
-              className="ml-auto text-red-500 hover:underline"
+              className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
             >
-              Clear all
+              &times; Clear all
             </button>
           )}
         </div>
@@ -258,7 +258,7 @@ export function AdvancedFilter({
                   value: "",
                 })
               }
-              className="border rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
             >
               {fieldDefs.map((d) => (
                 <option key={d.key} value={d.key}>
@@ -272,7 +272,7 @@ export function AdvancedFilter({
               onChange={(e) =>
                 updateRow(row.id, { operator: e.target.value as any })
               }
-              className="border rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[90px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[90px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
             >
               {(def?.operators ?? ["equals"]).map((op) => (
                 <option key={op} value={op}>
@@ -292,7 +292,7 @@ export function AdvancedFilter({
               <select
                 value={row.value}
                 onChange={(e) => updateRow(row.id, { value: e.target.value })}
-                className="border rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm bg-white min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
               >
                 <option value="">--</option>
                 {def.options.map((o) => (
@@ -307,13 +307,13 @@ export function AdvancedFilter({
                 value={row.value}
                 onChange={(e) => updateRow(row.id, { value: e.target.value })}
                 placeholder="value"
-                className="border rounded-lg px-2.5 py-1.5 text-sm min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm min-w-[130px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
               />
             )}
 
             <button
               onClick={() => removeRow(row.id)}
-              className="text-zinc-400 hover:text-red-500 text-lg leading-none"
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors text-lg leading-none"
             >
               &times;
             </button>
@@ -323,7 +323,7 @@ export function AdvancedFilter({
 
       <button
         onClick={addRow}
-        className="text-sm text-blue-600 hover:underline"
+        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
       >
         + Add filter
       </button>

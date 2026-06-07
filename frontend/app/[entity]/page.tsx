@@ -16,6 +16,8 @@ import { Card } from "@/components/card";
 import { getFilterComponent } from "@/components/filters/registry";
 import { getRelationFilters, getFilterComponentName } from "@/lib/metadata";
 import { showToast } from "@/components/toast";
+import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/skeleton";
 
 const PAGE_SIZE = 10;
 
@@ -263,23 +265,21 @@ export default function EntityListPage() {
   if (notFound) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold mb-2">Not Found</h1>
-        <p className="text-zinc-500 text-sm">
-          Entity &quot;{entityName}&quot; does not exist.
-        </p>
-        <a
-          href="/"
-          className="text-blue-600 hover:underline text-sm mt-2 inline-block"
-        >
+        <a href="/" className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 mb-4 transition-colors">
           &larr; Back to entities
         </a>
+        <EmptyState icon="🔍" title="Not Found" description={`Entity "${entityName}" does not exist`} />
       </div>
     );
   }
 
   if (!entity) {
     return (
-      <div className="text-zinc-500 text-sm">Loading entity info...</div>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-32 w-full" />
+      </div>
     );
   }
 

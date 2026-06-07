@@ -20,12 +20,15 @@ export function SearchBar({ onSearch, placeholder = "Search..." }: Props) {
   }, [value, onSearch]);
 
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      placeholder={placeholder}
-      className="w-full max-w-md border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    />
+    <div className="relative w-full max-w-md">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">&#128269;</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-shadow"
+      />
+    </div>
   );
 }
