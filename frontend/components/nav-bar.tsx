@@ -10,7 +10,7 @@ import { useLocale } from "./locale-provider";
 
 export function NavBar() {
   const t = useT();
-  const { setLocale } = useLocale();
+  const { setLocale, locales } = useLocale();
   const [entities, setEntities] = useState<string[]>([]);
   const pathname = usePathname();
 
@@ -54,13 +54,19 @@ export function NavBar() {
               );
             })}
           </nav>
-          <button
-            onClick={() => setLocale(t.locale === "en" ? "zh-TW" : "en")}
-            className="px-2 py-1 text-xs rounded-md border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--muted)] transition-colors mr-1"
-            title={t("locale.switchTo")}
-          >
-            {t.locale === "en" ? "中文" : "EN"}
-          </button>
+          {locales.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLocale(l.code)}
+              className={`px-2 py-1 text-xs rounded-md border transition-colors mr-0.5 last:mr-1 ${
+                t.locale === l.code
+                  ? "bg-[#0d9488]/10 text-[#0d9488] border-[#0d9488]/30"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--muted)]"
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
           <ThemeToggle />
         </div>
       </div>
