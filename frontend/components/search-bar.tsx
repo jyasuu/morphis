@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Icon } from "./icon";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -21,7 +22,7 @@ export function SearchBar({ onSearch, placeholder = "Search..." }: Props) {
 
   return (
     <div className="relative w-full max-w-md">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">&#128269;</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"><Icon name="search" className="w-4 h-4" /></span>
       <input
         type="text"
         value={value}

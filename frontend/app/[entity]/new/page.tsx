@@ -9,6 +9,7 @@ import { buildCreateMutation } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
 import { Card } from "@/components/card";
 import { Skeleton } from "@/components/skeleton";
+import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
 
 function EntityCreateContent({
@@ -43,7 +44,7 @@ function EntityCreateContent({
           onClick={() => router.push(`/${entityName}`)}
           className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
         >
-          &larr; Back to {entityName}
+          <Icon name="arrow-left" className="w-4 h-4" /> Back to {entityName}
         </button>
       </div>
       <Card>

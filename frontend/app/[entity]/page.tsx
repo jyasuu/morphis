@@ -18,6 +18,8 @@ import { getRelationFilters, getFilterComponentName, getPermissions } from "@/li
 import { showToast } from "@/components/toast";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
+import { Icon } from "@/components/icon";
+import { useConfirm } from "@/components/confirm-dialog";
 
 const PAGE_SIZE = 10;
 
@@ -60,6 +62,7 @@ function EntityListContent({
   const [andedData, setAndedData] = useState<any[] | null>(null);
   const [andedLoading, setAndedLoading] = useState(false);
   const client = useClient();
+  const confirm = useConfirm();
 
   const relFilters = getRelationFilters(entityName);
   const FilterComponent = getFilterComponent(
@@ -161,7 +164,8 @@ function EntityListContent({
   );
 
   async function handleDelete(pk: string) {
-    if (!window.confirm("Delete this record?")) return;
+    const ok = await confirm.confirm("Delete record", "Are you sure you want to delete this record?");
+    if (!ok) return;
     const res = await deleteMut({ id: pk });
     if (res.error) {
       showToast(`Delete failed: ${res.error.message}`, "error");
@@ -228,7 +232,7 @@ function EntityListContent({
               disabled={page === 0}
               className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
             >
-              &larr; Previous
+              <Icon name="chevron-left" className="w-4 h-4" /> Previous
             </button>
             <span className="inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 text-sm font-medium text-zinc-700 bg-zinc-100 rounded-lg">
               Page {page + 1}
@@ -238,11 +242,12 @@ function EntityListContent({
               disabled={!hasMore}
               className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white text-zinc-600 disabled:opacity-30 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
             >
-              Next &rarr;
+              Next <Icon name="chevron-right" className="w-4 h-4" />
             </button>
           </div>
         )}
       </Card>
+      {confirm.dialog}
     </div>
   );
 }
@@ -272,9 +277,9 @@ export default function EntityListPage() {
     return (
       <div>
         <a href="/" className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 mb-4 transition-colors">
-          &larr; Back to entities
+          <Icon name="arrow-left" className="w-4 h-4" /> Back to entities
         </a>
-        <EmptyState icon="🔍" title="Not Found" description={`Entity "${entityName}" does not exist`} />
+        <EmptyState icon="search" title="Not Found" description={`Entity "${entityName}" does not exist`} />
       </div>
     );
   }

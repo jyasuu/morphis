@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useQuery } from "urql";
 import { getFieldControl } from "@/lib/metadata";
 import type { RelationFilterMeta } from "@/lib/metadata";
+import { Icon } from "./icon";
 
 interface FilterRowState {
   id: string;
@@ -239,7 +240,7 @@ export function AdvancedFilter({
               onClick={clearAll}
               className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
             >
-              &times; Clear all
+              <Icon name="x" className="w-3 h-3" /> Clear all
             </button>
           )}
         </div>
@@ -313,9 +314,9 @@ export function AdvancedFilter({
 
             <button
               onClick={() => removeRow(row.id)}
-              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors text-lg leading-none"
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
             >
-              &times;
+              <Icon name="x" className="w-4 h-4" />
             </button>
           </div>
         );

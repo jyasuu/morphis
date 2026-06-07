@@ -9,6 +9,7 @@ import { DynamicForm } from "./dynamic-form";
 import { Modal } from "./modal";
 import { showToast } from "./toast";
 import { getPermissions } from "@/lib/metadata";
+import { ConfirmDialog } from "./confirm-dialog";
 
 interface Props {
   entity: EntityInfo;
@@ -32,6 +33,7 @@ export function RelationPanel({
 }: Props) {
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | null>(null);
   const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const relatedEntity = entityLookup(field.relatedEntity!);
   const relatedPk = relatedEntity?.primaryKey ?? "id";
@@ -81,9 +83,14 @@ export function RelationPanel({
     onMutation();
   }
 
-  async function handleDelete(pk: string) {
-    if (!window.confirm("Delete this record?")) return;
-    const res = await deleteMut({ id: pk });
+  function handleDeleteClick(pk: string) {
+    setDeleteTarget(pk);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const res = await deleteMut({ id: deleteTarget });
+    setDeleteTarget(null);
     if (res.error) {
       showToast(`Delete failed: ${res.error.message}`, "error");
     } else {
@@ -139,7 +146,7 @@ export function RelationPanel({
           setEditingRecord(rec);
           setModalOpen("edit");
         } : undefined}
-        onDelete={relatedPerms?.delete !== false ? handleDelete : undefined}
+        onDelete={relatedPerms?.delete !== false ? handleDeleteClick : undefined}
         perm={{ update: relatedPerms?.update, delete: relatedPerms?.delete }}
       />
 
@@ -173,6 +180,14 @@ export function RelationPanel({
           />
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete record"
+        message="Are you sure you want to delete this record?"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

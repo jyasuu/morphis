@@ -11,6 +11,7 @@ import { RelationPanel } from "@/components/relation-panel";
 import { Card } from "@/components/card";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
+import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
 import { getPermissions } from "@/lib/metadata";
 
@@ -65,7 +66,7 @@ function EntityDetailContent({
     | undefined;
 
   if (!record) {
-    return <EmptyState icon="🔍" title="Record not found" description={`No ${entityName} with ID "${id}" exists`} />;
+    return <EmptyState icon="search" title="Record not found" description={`No ${entityName} with ID "${id}" exists`} />;
   }
 
   return (
@@ -75,7 +76,7 @@ function EntityDetailContent({
           onClick={() => router.push(`/${entityName}`)}
           className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
         >
-          &larr; Back to {entityName}
+          <Icon name="arrow-left" className="w-4 h-4" /> Back to {entityName}
         </button>
       </div>
       <div className="space-y-6">

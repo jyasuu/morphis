@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "./icon";
 
 interface Toast {
   message: string;
@@ -31,8 +32,6 @@ export function ToastContainer() {
 
   if (!toast) return null;
 
-  const icon = toast.type === "success" ? "✓" : "✕";
-
   return (
     <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-2 fade-in duration-200">
       <div
@@ -40,7 +39,7 @@ export function ToastContainer() {
           toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
         }`}
       >
-        <span className="text-base font-bold leading-none">{icon}</span>
+        <Icon name={toast.type === "success" ? "check" : "x"} className="w-4 h-4" />
         <span>{toast.message}</span>
       </div>
     </div>
