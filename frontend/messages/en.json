@@ -84,6 +84,9 @@
     "switchToLight": "Switch to light mode",
     "switchToDark": "Switch to dark mode"
   },
+  "locale": {
+    "switchTo": "中文"
+  },
   "entity": {
     "materials": "Materials",
     "colorways": "Colorways",

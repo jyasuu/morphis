@@ -6,9 +6,11 @@ import { usePathname } from "next/navigation";
 import { getEntityNames } from "@/lib/schema";
 import { ThemeToggle } from "./theme-toggle";
 import { useT } from "@/lib/i18n";
+import { useLocale } from "./locale-provider";
 
 export function NavBar() {
   const t = useT();
+  const { setLocale } = useLocale();
   const [entities, setEntities] = useState<string[]>([]);
   const pathname = usePathname();
 
@@ -52,6 +54,13 @@ export function NavBar() {
               );
             })}
           </nav>
+          <button
+            onClick={() => setLocale(t.locale === "en" ? "zh-TW" : "en")}
+            className="px-2 py-1 text-xs rounded-md border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--muted)] transition-colors mr-1"
+            title={t("locale.switchTo")}
+          >
+            {t.locale === "en" ? "中文" : "EN"}
+          </button>
           <ThemeToggle />
         </div>
       </div>
