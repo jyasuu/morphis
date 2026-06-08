@@ -1,4 +1,5 @@
 import type { EntityInfo, FieldInfo, SearchFilterFieldInfo } from "./types";
+import { getHiddenEntities } from "./metadata";
 
 const introspectionQuery = `
   query IntrospectionQuery {
@@ -214,7 +215,10 @@ export async function loadSchema(): Promise<SchemaCache> {
         if (f.name === "id") {
           primaryKey = f.name;
         }
-        if (!isCreateable) {
+        const isAutoIncrement = createInputType
+          ? !isCreateable
+          : f.name === "id" || f.name === primaryKey;
+        if (isAutoIncrement) {
           autoIncrementFields.push(f.name);
         }
         fields.push({
@@ -222,7 +226,7 @@ export async function loadSchema(): Promise<SchemaCache> {
           kind: "scalar",
           scalarType: fName ?? undefined,
           nullable: !nonNull,
-          autoIncrement: !isCreateable,
+          autoIncrement: isAutoIncrement,
           isPk: f.name === "id",
         });
       }
@@ -300,7 +304,8 @@ export async function getEntity(name: string): Promise<EntityInfo | null> {
 
 export async function getEntityNames(): Promise<string[]> {
   const schema = await loadSchema();
-  return Object.keys(schema).sort();
+  const hidden = getHiddenEntities();
+  return Object.keys(schema).filter((name) => !hidden.has(name)).sort();
 }
 
 export function getCachedEntity(name: string): EntityInfo | null {

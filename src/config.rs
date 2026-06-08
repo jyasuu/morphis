@@ -148,10 +148,13 @@ impl PermissionCache {
     }
 
     pub fn set(&mut self, key: String, values: Vec<serde_json::Value>, ttl: std::time::Duration) {
-        self.store.insert(key, PermissionCacheEntry {
-            expires_at: std::time::Instant::now() + ttl,
-            values,
-        });
+        self.store.insert(
+            key,
+            PermissionCacheEntry {
+                expires_at: std::time::Instant::now() + ttl,
+                values,
+            },
+        );
     }
 }
 
@@ -179,7 +182,12 @@ pub struct CrudConfig {
 
 impl Default for CrudConfig {
     fn default() -> Self {
-        Self { create: true, read: true, update: true, delete: true }
+        Self {
+            create: true,
+            read: true,
+            update: true,
+            delete: true,
+        }
     }
 }
 
@@ -249,7 +257,9 @@ pub struct RelationConfig {
 impl RelationConfig {
     pub fn field_pairs(&self) -> Vec<(&str, &str)> {
         if !self.local_fields.is_empty() && !self.foreign_fields.is_empty() {
-            self.local_fields.iter().zip(self.foreign_fields.iter())
+            self.local_fields
+                .iter()
+                .zip(self.foreign_fields.iter())
                 .map(|(l, f)| (l.as_str(), f.as_str()))
                 .collect()
         } else {
@@ -404,12 +414,18 @@ tables:
 
         let parent = config.tables.get("parents").unwrap();
         assert_eq!(parent.relations.len(), 1);
-        assert!(matches!(parent.relations[0].rel_type, RelationType::HasMany));
+        assert!(matches!(
+            parent.relations[0].rel_type,
+            RelationType::HasMany
+        ));
         assert_eq!(parent.relations[0].table, "children");
 
         let child = config.tables.get("children").unwrap();
         assert_eq!(child.relations.len(), 1);
-        assert!(matches!(child.relations[0].rel_type, RelationType::BelongsTo));
+        assert!(matches!(
+            child.relations[0].rel_type,
+            RelationType::BelongsTo
+        ));
         assert_eq!(child.relations[0].table, "parents");
     }
 
@@ -606,9 +622,22 @@ tables:
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         let rf = &config.tables.get("items").unwrap().row_filters[0];
         match rf {
-            RowFilterConfig::SubqueryFilter { columns, match_columns, from_source, user_column, from_header, .. } => {
-                assert_eq!(columns, &vec!["tenant_id".to_string(), "region".to_string()]);
-                assert_eq!(match_columns, &vec!["tenant_id".to_string(), "region".to_string()]);
+            RowFilterConfig::SubqueryFilter {
+                columns,
+                match_columns,
+                from_source,
+                user_column,
+                from_header,
+                ..
+            } => {
+                assert_eq!(
+                    columns,
+                    &vec!["tenant_id".to_string(), "region".to_string()]
+                );
+                assert_eq!(
+                    match_columns,
+                    &vec!["tenant_id".to_string(), "region".to_string()]
+                );
                 assert_eq!(from_source, "user_permissions");
                 assert_eq!(user_column, "user_id");
                 assert_eq!(from_header, "X-User-ID");

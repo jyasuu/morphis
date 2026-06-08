@@ -1,35 +1,43 @@
-use async_graphql::dynamic::{
-    Field, FieldFuture, FieldValue, InputValue, Object, TypeRef,
-};
 use crate::config::{ColumnType, Config, TableConfig};
+use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, Object, TypeRef};
 
 use super::db;
 use super::input::build_filter_sql;
 use super::util::{capitalize_first, gql_val};
-use super::{apply_row_filters, AppContext, Identity};
+use super::{AppContext, Identity, apply_row_filters};
 
 fn build_pk_args(table_config: &TableConfig) -> Vec<(String, String, bool)> {
     if table_config.primary_key.len() > 1 {
-        table_config.primary_key.iter().map(|pk_name| {
-            let is_int = table_config.columns.iter().any(|c| {
-                c.name == *pk_name && matches!(c.col_type, ColumnType::Int | ColumnType::Int64)
-            });
-            (pk_name.clone(), pk_name.clone(), is_int)
-        }).collect()
+        table_config
+            .primary_key
+            .iter()
+            .map(|pk_name| {
+                let is_int = table_config.columns.iter().any(|c| {
+                    c.name == *pk_name && matches!(c.col_type, ColumnType::Int | ColumnType::Int64)
+                });
+                (pk_name.clone(), pk_name.clone(), is_int)
+            })
+            .collect()
     } else {
         let pk = &table_config.primary_key[0];
-        let is_int = table_config.columns.iter().any(|c| {
-            c.name == *pk && matches!(c.col_type, ColumnType::Int | ColumnType::Int64)
-        });
+        let is_int = table_config
+            .columns
+            .iter()
+            .any(|c| c.name == *pk && matches!(c.col_type, ColumnType::Int | ColumnType::Int64));
         vec![("id".to_string(), pk.clone(), is_int)]
     }
 }
 
-pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, TableConfig)]) -> Object {
+pub(crate) fn build_query_object(
+    _config: &Config,
+    tables: &[(String, String, TableConfig)],
+) -> Object {
     let mut query = Object::new("Query");
 
     for (name, table_name, table_config) in tables {
-        if !table_config.crud.read { continue; }
+        if !table_config.crud.read {
+            continue;
+        }
         let pk_args = build_pk_args(table_config);
         let tn = table_name.clone();
         let row_filters = table_config.row_filters.clone();
@@ -39,47 +47,60 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
         let tn_first_closure = tn.clone();
         let row_filters_closure = row_filters.clone();
 
-        let mut single_field = Field::new(
-            name.clone(),
-            TypeRef::named(tn_first),
-            move |ctx| {
-                let pk_args = pk_args_closure.clone();
-                let table_name = tn_first_closure.clone();
-                let row_filters = row_filters_closure.clone();
+        let mut single_field = Field::new(name.clone(), TypeRef::named(tn_first), move |ctx| {
+            let pk_args = pk_args_closure.clone();
+            let table_name = tn_first_closure.clone();
+            let row_filters = row_filters_closure.clone();
 
-                FieldFuture::new(async move {
-                    let mut where_clauses = Vec::new();
-                    let mut params = Vec::new();
-                    for (i, (arg_name, col_name, is_int)) in pk_args.iter().enumerate() {
-                        let val = if *is_int {
-                            ctx.args.get(arg_name.as_str()).and_then(|v| v.i64().ok()).map(|n| n.to_string())
-                        } else {
-                            ctx.args.get(arg_name.as_str()).and_then(|v| v.string().ok()).map(String::from)
-                        };
-                        let val = val.ok_or_else(|| async_graphql::Error::new(format!("{} is required", arg_name)))?;
-                        let cast = if *is_int { "::int" } else { "" };
-                        where_clauses.push(format!("{} = ${}{}", col_name, i + 1, cast));
-                        params.push(val);
-                    }
+            FieldFuture::new(async move {
+                let mut where_clauses = Vec::new();
+                let mut params = Vec::new();
+                for (i, (arg_name, col_name, is_int)) in pk_args.iter().enumerate() {
+                    let val = if *is_int {
+                        ctx.args
+                            .get(arg_name.as_str())
+                            .and_then(|v| v.i64().ok())
+                            .map(|n| n.to_string())
+                    } else {
+                        ctx.args
+                            .get(arg_name.as_str())
+                            .and_then(|v| v.string().ok())
+                            .map(String::from)
+                    };
+                    let val = val.ok_or_else(|| {
+                        async_graphql::Error::new(format!("{} is required", arg_name))
+                    })?;
+                    let cast = if *is_int { "::int" } else { "" };
+                    where_clauses.push(format!("{} = ${}{}", col_name, i + 1, cast));
+                    params.push(val);
+                }
 
-                    let mut sql = format!("SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {}", table_name, where_clauses.join(" AND "));
-                    if let Ok(identity) = ctx.data::<Identity>() {
-                        apply_row_filters(&mut sql, &mut params, identity, &row_filters);
-                    }
-                    sql.push_str(" LIMIT 1) t");
-                    let app_ctx = ctx.data::<std::sync::Arc<AppContext>>()
-                        .map_err(|_| async_graphql::Error::new("internal context missing"))?;
+                let mut sql = format!(
+                    "SELECT row_to_json(t)::text FROM (SELECT * FROM {} WHERE {}",
+                    table_name,
+                    where_clauses.join(" AND ")
+                );
+                if let Ok(identity) = ctx.data::<Identity>() {
+                    apply_row_filters(&mut sql, &mut params, identity, &row_filters);
+                }
+                sql.push_str(" LIMIT 1) t");
+                let app_ctx = ctx
+                    .data::<std::sync::Arc<AppContext>>()
+                    .map_err(|_| async_graphql::Error::new("internal context missing"))?;
 
-                    match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
-                        Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
-                        None => Ok(FieldValue::NONE),
-                    }
-                })
-            },
-        );
+                match db::fetch_one(&app_ctx.pool, &sql, &params).await? {
+                    Some(row) => Ok(Some(FieldValue::value(gql_val(row)))),
+                    None => Ok(FieldValue::NONE),
+                }
+            })
+        });
 
         for (arg_name, _, is_int) in &pk_args {
-            let arg_type = if *is_int { TypeRef::named_nn(TypeRef::INT) } else { TypeRef::named_nn(TypeRef::STRING) };
+            let arg_type = if *is_int {
+                TypeRef::named_nn(TypeRef::INT)
+            } else {
+                TypeRef::named_nn(TypeRef::STRING)
+            };
             single_field = single_field.argument(InputValue::new(arg_name.clone(), arg_type));
         }
 
@@ -88,7 +109,11 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
         let list_name = format!("{}List", name);
         let tn_list = tn.clone();
         let tn_list_closure = tn.clone();
-        let col_names: Vec<String> = table_config.columns.iter().map(|c| c.name.clone()).collect();
+        let col_names: Vec<String> = table_config
+            .columns
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
         let list_row_filters = table_config.row_filters.clone();
 
         query = query.field(

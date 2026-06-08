@@ -56,6 +56,11 @@ tables:
         foreign_field: mat_no
 
   sizes:
+    crud:
+      create: false
+      read: true
+      update: false
+      delete: false 
     table: sizes
     primary_key: [id]
     columns:

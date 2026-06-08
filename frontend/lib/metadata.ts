@@ -23,6 +23,7 @@ export interface EntityPermissions {
 }
 
 interface EntityOverride {
+  hidden?: boolean;
   filterComponent?: string;
   permissions?: Partial<EntityPermissions>;
 }
@@ -59,6 +60,16 @@ export function getFilterComponentName(entityName: string): string {
     cfg.defaultFilterComponent ??
     "advanced"
   );
+}
+
+export function getHiddenEntities(): Set<string> {
+  const hidden = new Set<string>();
+  if (cfg.entityOverrides) {
+    for (const [name, override] of Object.entries(cfg.entityOverrides)) {
+      if (override.hidden) hidden.add(name);
+    }
+  }
+  return hidden;
 }
 
 export function getPermissions(entityName: string): EntityPermissions {

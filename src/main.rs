@@ -5,11 +5,7 @@ mod schema;
 use std::sync::Arc;
 
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{
-    extract::Extension,
-    routing::get,
-    Router,
-};
+use axum::{Router, extract::Extension, routing::get};
 use tower_http::cors::CorsLayer;
 
 use schema::Identity;

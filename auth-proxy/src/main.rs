@@ -2,10 +2,10 @@ mod config;
 
 use std::sync::Arc;
 
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use pingora::proxy::{ProxyHttp, Session};
-use pingora::upstreams::peer::HttpPeer;
 use pingora::server::Server;
+use pingora::upstreams::peer::HttpPeer;
 use serde::Deserialize;
 use tracing::info;
 
@@ -82,11 +82,7 @@ impl ProxyHttp for AuthProxy {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false;
         validation.required_spec_claims.clear();
-        let token_data = match decode::<Claims>(
-            token,
-            &self.decoding_key,
-            &validation,
-        ) {
+        let token_data = match decode::<Claims>(token, &self.decoding_key, &validation) {
             Ok(data) => data,
             Err(e) => {
                 info!("JWT validation failed: {}", e);
@@ -100,9 +96,7 @@ impl ProxyHttp for AuthProxy {
         for mapping in &self.config.header_mappings {
             if let Some(val) = Self::header_value_from_claims(&claims, &mapping.claim) {
                 let name = mapping.header.clone();
-                let _ = session
-                    .req_header_mut()
-                    .insert_header(name, val);
+                let _ = session.req_header_mut().insert_header(name, val);
             }
         }
 

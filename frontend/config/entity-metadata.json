@@ -10,6 +10,9 @@
   "entityOverrides": {
     "materials": {
       "filterComponent": "advanced"
+    },
+    "user_permissions": {
+      "hidden": true
     }
   },
   "controls": {

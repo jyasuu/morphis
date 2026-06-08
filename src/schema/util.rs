@@ -1,6 +1,6 @@
 use async_graphql::{
     Name, Value,
-    dynamic::{indexmap::IndexMap, ValueAccessor},
+    dynamic::{ValueAccessor, indexmap::IndexMap},
 };
 
 pub(crate) fn json_to_gql(v: serde_json::Value) -> Value {
@@ -82,8 +82,14 @@ mod tests {
 
     #[test]
     fn test_json_to_gql_bool() {
-        assert_eq!(json_to_gql(serde_json::Value::Bool(true)), Value::Boolean(true));
-        assert_eq!(json_to_gql(serde_json::Value::Bool(false)), Value::Boolean(false));
+        assert_eq!(
+            json_to_gql(serde_json::Value::Bool(true)),
+            Value::Boolean(true)
+        );
+        assert_eq!(
+            json_to_gql(serde_json::Value::Bool(false)),
+            Value::Boolean(false)
+        );
     }
 
     #[test]

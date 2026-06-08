@@ -38,7 +38,12 @@ impl Identity {
     }
 }
 
-pub(crate) fn apply_row_filters(sql: &mut String, params: &mut Vec<String>, identity: &Identity, row_filters: &[RowFilterConfig]) {
+pub(crate) fn apply_row_filters(
+    sql: &mut String,
+    params: &mut Vec<String>,
+    identity: &Identity,
+    row_filters: &[RowFilterConfig],
+) {
     for rf in row_filters {
         if let Some(val) = identity.header_value(rf.header_name()) {
             let clause = match rf {
@@ -49,8 +54,18 @@ pub(crate) fn apply_row_filters(sql: &mut String, params: &mut Vec<String>, iden
                         format!(" AND {} = ${}", column, params.len() + 1)
                     }
                 }
-                RowFilterConfig::SubqueryFilter { columns, match_columns, from_source, user_column, .. } => {
-                    let prefix = if params.is_empty() { " WHERE " } else { " AND " };
+                RowFilterConfig::SubqueryFilter {
+                    columns,
+                    match_columns,
+                    from_source,
+                    user_column,
+                    ..
+                } => {
+                    let prefix = if params.is_empty() {
+                        " WHERE "
+                    } else {
+                        " AND "
+                    };
                     format!(
                         "{} ({}) IN (SELECT {} FROM {} WHERE {} = ${})",
                         prefix,
@@ -69,7 +84,10 @@ pub(crate) fn apply_row_filters(sql: &mut String, params: &mut Vec<String>, iden
 }
 
 pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
-    let es_client = config.elasticsearch.as_ref().map(|_| reqwest::Client::new());
+    let es_client = config
+        .elasticsearch
+        .as_ref()
+        .map(|_| reqwest::Client::new());
     let es_url = config.elasticsearch.as_ref().map(|c| c.url.clone());
     let ctx = Arc::new(AppContext {
         pool,
@@ -81,7 +99,8 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     let mut schema_builder = Schema::build("Query", Some("Mutation"), None);
     schema_builder = schema_builder.data(ctx);
 
-    let mut table_type_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut table_type_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     for (name, table_config) in &config.tables {
         table_type_map.insert(table_config.table.clone(), name.clone());
     }
@@ -101,7 +120,11 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
 
         let obj = table::build_table_object(name, table_config, &config.tables, &table_type_map);
         schema_builder = schema_builder.register(obj);
-        table_objects.push((name.clone(), table_config.table.clone(), table_config.clone()));
+        table_objects.push((
+            name.clone(),
+            table_config.table.clone(),
+            table_config.clone(),
+        ));
     }
 
     let mut query = query::build_query_object(&config, &table_objects);
@@ -109,12 +132,18 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     for index_cfg in &config.search_indexes {
         tracing::debug!("Registering search index: {}", index_cfg.name);
         let sf = index_cfg.searchable_fields.clone();
-        let mut input_obj = InputObject::new(format!("{}SearchFilter", util::capitalize_first(&index_cfg.index)));
+        let mut input_obj = InputObject::new(format!(
+            "{}SearchFilter",
+            util::capitalize_first(&index_cfg.index)
+        ));
         for f in &sf {
-            input_obj = input_obj.field(InputValue::new(f.clone(), TypeRef::named(TypeRef::STRING)));
+            input_obj =
+                input_obj.field(InputValue::new(f.clone(), TypeRef::named(TypeRef::STRING)));
         }
         schema_builder = schema_builder.register(input_obj);
-        let search_row_filters = config.tables.get(&index_cfg.graphql_type)
+        let search_row_filters = config
+            .tables
+            .get(&index_cfg.graphql_type)
             .map(|t| t.row_filters.clone())
             .unwrap_or_default();
         query = search::add_search_field(query, index_cfg, search_row_filters);

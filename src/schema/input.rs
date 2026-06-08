@@ -10,7 +10,11 @@ pub(crate) fn build_update_input(name: &str, table_config: &TableConfig) -> Inpu
     build_input_object(&format!("Update{}Input", name), table_config, true)
 }
 
-pub(crate) fn build_input_object(name: &str, table_config: &TableConfig, all_nullable: bool) -> InputObject {
+pub(crate) fn build_input_object(
+    name: &str,
+    table_config: &TableConfig,
+    all_nullable: bool,
+) -> InputObject {
     let mut input = InputObject::new(name);
     for col in &table_config.columns {
         let is_pk = table_config.primary_key.contains(&col.name);
@@ -86,7 +90,9 @@ mod tests {
         let mut clauses = Vec::new();
         let mut params = Vec::new();
         for (key, val) in &pairs {
-            if !allowed.contains(&key.to_string()) { continue; }
+            if !allowed.contains(&key.to_string()) {
+                continue;
+            }
             clauses.push(format!("{} = ${}", key, params.len() + 1));
             params.push(val.to_string());
         }
@@ -100,7 +106,8 @@ mod tests {
         let allowed = ["name".to_string()];
         let pairs = [("name", "test"), ("INJECTION", "evil")];
 
-        let result: Vec<&str> = pairs.iter()
+        let result: Vec<&str> = pairs
+            .iter()
             .filter(|(k, _)| allowed.contains(&k.to_string()))
             .map(|(k, _)| *k)
             .collect();
@@ -121,7 +128,9 @@ mod tests {
 
         let mut clauses = Vec::new();
         for (key, _val) in &pairs {
-            if !allowed.contains(&key.to_string()) { continue; }
+            if !allowed.contains(&key.to_string()) {
+                continue;
+            }
             clauses.push(format!("{} = $1", key));
         }
 
