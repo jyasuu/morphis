@@ -1,6 +1,7 @@
 {
   "nav": {
-    "title": "Morphis Admin"
+    "title": "Morphis Admin",
+    "search": "搜尋資料表..."
   },
   "home": {
     "title": "資料實體",
@@ -34,7 +35,8 @@
     "actions": "操作",
     "view": "檢視",
     "edit": "編輯",
-    "delete": "刪除"
+    "delete": "刪除",
+    "columns": "欄位"
   },
   "form": {
     "emptyOption": "--",

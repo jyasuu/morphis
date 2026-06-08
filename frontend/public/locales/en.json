@@ -1,6 +1,7 @@
 {
   "nav": {
-    "title": "Morphis Admin"
+    "title": "Morphis Admin",
+    "search": "Search tables..."
   },
   "home": {
     "title": "Entities",
@@ -34,7 +35,8 @@
     "actions": "Actions",
     "view": "View",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "columns": "Columns"
   },
   "form": {
     "emptyOption": "--",

@@ -24,8 +24,6 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { useT } from "@/lib/i18n";
 
-const PAGE_SIZE = 10;
-
 function intersectByPk<T>(arrays: T[][], pk: string): T[] {
   if (arrays.length === 0) return [];
   const counts = new Map<string, { record: T; count: number }>();
@@ -63,6 +61,7 @@ function EntityListContent({
     terms?: string[];
   }>({ query: "", filter: {} });
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>();
   const [sortDir, setSortDir] = useState<"asc" | "desc" | undefined>();
   const [andedData, setAndedData] = useState<any[] | null>(null);
@@ -86,14 +85,14 @@ function EntityListContent({
     ? null
     : isSearching
       ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
-      : buildListQuery(entity, { limit: PAGE_SIZE, sortField, sortDir });
+      : buildListQuery(entity, { limit: pageSize, sortField, sortDir });
   const listVars = isAndSearch
     ? {}
     : isSearching
       ? entity.searchFilterFields?.length
         ? { query: activeSearchQuery, filter: activeFilter }
         : { query: activeSearchQuery }
-      : { limit: PAGE_SIZE, offset: page * PAGE_SIZE, ...(sortField ? { order_by: `${sortDir === "desc" ? "-" : ""}${sortField}` } : {}) };
+      : { limit: pageSize, offset: page * pageSize, ...(sortField ? { order_by: `${sortDir === "desc" ? "-" : ""}${sortField}` } : {}) };
 
   const [result, reexecute] = useQuery({
     query: listQuery ?? "query _ { __typename }",
@@ -194,7 +193,7 @@ function EntityListContent({
     list: perms.list && entity.capabilities.list,
     read: perms.read && entity.capabilities.detail,
   };
-  const hasMore = data.length >= PAGE_SIZE;
+  const hasMore = data.length >= pageSize;
 
   return (
     <div>
@@ -269,6 +268,15 @@ function EntityListContent({
             >
               {t("list.next")} <Icon name="chevron-right" className="w-4 h-4" />
             </button>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+              className="px-2 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] outline-none focus:border-[#0d9488] cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
           </div>
         )}
       </Card>
