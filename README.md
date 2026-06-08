@@ -293,6 +293,87 @@ Test files (execute in this order due to side effects):
 - `tests/search.hurl` — Elasticsearch full-text search, field filters, and nested field search
 - `tests/row_filters.hurl` — Row-level security (column + subquery filters + RBAC)
 
+## Frontend Admin UI
+
+A Next.js admin UI lives in `frontend/` that discovers the GraphQL schema at runtime and auto-generates list, detail, and create pages for every table.
+
+### Entity metadata (`frontend/config/entity-metadata.json`)
+
+Controls frontend behavior per entity/field:
+
+```json
+{
+  "defaultFilterComponent": "advanced",
+  "entityOverrides": {
+    "sizes": {
+      "hidden": true
+    },
+    "materials": {
+      "filterComponent": "advanced",
+      "permissions": {
+        "create": false
+      }
+    }
+  },
+  "controls": {
+    "materials": {
+      "status": {
+        "control": "select",
+        "options": [
+          { "label": "Active", "value": "active" },
+          { "label": "Discontinued", "value": "discontinued" }
+        ]
+      },
+      "tenant_id": {
+        "control": "text",
+        "hidden": true
+      }
+    }
+  },
+  "relationFilters": {
+    "materials": [
+      {
+        "label": "Has feature",
+        "relationEntity": "material_features",
+        "field": "feature_name",
+        "displayField": "feature_name"
+      }
+    ]
+  }
+}
+```
+
+| Key | Purpose |
+|-----|---------|
+| `entityOverrides.<name>.hidden` | Hides entity from the nav bar (direct URL still works) |
+| `entityOverrides.<name>.filterComponent` | Which filter UI to use (`advanced` or `simple`) |
+| `entityOverrides.<name>.permissions` | Overrides default CRUD permissions for button visibility |
+| `controls.<entity>.<field>.control` | Form control type (`text` or `select`) |
+| `controls.<entity>.<field>.options` | Options for select fields |
+| `controls.<entity>.<field>.hidden` | Hides field from list table and detail view |
+| `relationFilters` | Advanced search filters for related entities with subquery matching |
+
+### UI features
+
+- **Nav search** — search box in the header filters entity links as you type; overflow count shown when >5 match
+- **Column toggle** — eye button opens a dropdown to show/hide columns; preference persisted in localStorage per entity
+- **CSV export** — downloads the current list view as a CSV file
+- **Column resize** — drag the right edge of any column header to resize
+- **Page size** — dropdown in pagination to switch between 10/25/50 rows per page
+- **Multi-term AND search** — search terms with "match all" logic via client-side intersection of ES results
+- **Inline relation CRUD** — has_many records can be created/edited/deleted directly on the detail page
+
+### How it works
+
+1. **Schema discovery**: `lib/schema.ts` fetches `__schema` introspection at runtime and caches `EntityInfo` objects
+2. **Query building**: `lib/query-builder.ts` constructs list, detail, search, and mutation strings from entity metadata
+3. **Capability detection**: Mutations that don't exist in the schema (e.g., `create: false` in config) are omitted from the UI automatically
+4. **Auto-increment handling**: When a `CreateXxxInput` type is absent (create disabled), only the primary key is treated as auto-increment — other scalar fields remain visible
+
+### Locale setup
+
+Translation files in `public/locales/` are fetched at runtime — no rebuild needed. Entity and field names use dotted paths for lookup (falls back to raw name).
+
 ## Limitations
 
 - **N+1 queries**: Relation resolvers execute one SQL query per related row. A list of N materials each loading their colorways will execute N+1 queries (one for the list, one per material). This is acceptable for small-to-medium result sets but will not scale for large lists with eager-loaded relations.
