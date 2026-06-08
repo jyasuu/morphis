@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "urql";
 import { useParams, useRouter } from "next/navigation";
 import type { EntityInfo } from "@/lib/types";
 import { getEntity, getCachedEntity } from "@/lib/schema";
-import { buildDetailQuery, buildUpdateMutation } from "@/lib/query-builder";
+import { buildDetailQuery, buildUpdateMutation, pkId } from "@/lib/query-builder";
 import { DynamicForm } from "@/components/dynamic-form";
 import { RelationPanel } from "@/components/relation-panel";
 import { Card } from "@/components/card";
@@ -13,14 +13,14 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { Icon } from "@/components/icon";
 import { showToast } from "@/components/toast";
-import { getPermissions } from "@/lib/metadata";
+import { getPermissions, getFieldControl } from "@/lib/metadata";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { useT } from "@/lib/i18n";
 
 function EntityDetailContent({
   entity,
   entityName,
-  id,
+  id: rawId,
 }: {
   entity: EntityInfo;
   entityName: string;
@@ -31,6 +31,8 @@ function EntityDetailContent({
   const detailQuery = buildDetailQuery(entity, getCachedEntity);
   const updateMutation = buildUpdateMutation(entity);
 
+  const id = pkId(entity, rawId);
+
   const [result, reexecute] = useQuery({
     query: detailQuery,
     variables: { id },
@@ -38,12 +40,10 @@ function EntityDetailContent({
 
   const [, updateMut] = useMutation(updateMutation);
 
-  const hasManyFields = entity.fields.filter((f) => f.kind === "has_many");
-
   async function handleSubmit(values: Record<string, string>) {
     const input: Record<string, unknown> = {};
     for (const f of entity.fields) {
-      if (f.kind === "scalar" && !f.autoIncrement) {
+      if (f.kind === "scalar" && !f.autoIncrement && !getFieldControl(entity.name, f.name).hidden) {
         const v = values[f.name];
         input[f.name] = v === "" && f.nullable ? null : v;
       }
@@ -55,6 +55,7 @@ function EntityDetailContent({
   }
 
   const perms = getPermissions(entityName);
+  const hasManyFields = entity.fields.filter((f) => f.kind === "has_many");
 
   const handleMutation = useCallback(() => {
     reexecute({ requestPolicy: "network-only" });
@@ -69,12 +70,12 @@ function EntityDetailContent({
     | undefined;
 
   if (!record) {
-    return <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: t.entity(entityName), id })} />;
+    return <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: t.entity(entityName), id: rawId })} />;
   }
 
   return (
     <div>
-      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName), href: `/${entityName}` }, { label: id }]} />
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName), href: `/${entityName}` }, { label: rawId }]} />
       <div className="space-y-6">
         <Card>
           <h1 className="text-xl font-semibold mb-1">
@@ -92,7 +93,7 @@ function EntityDetailContent({
             </>
           ) : (
             <div className="text-sm text-[var(--text-secondary)] space-y-1">
-              {entity.fields.filter((f) => f.kind === "scalar" && !f.autoIncrement).map((f) => (
+              {entity.fields.filter((f) => f.kind === "scalar" && !f.autoIncrement && !getFieldControl(entity.name, f.name).hidden).map((f) => (
                 <div key={f.name} className="flex gap-2">
                   <span className="font-medium text-[var(--text-secondary)] min-w-[120px]">{t.field(entity.name, f.name)}</span>
                   <span>{String(record[f.name] ?? "")}</span>

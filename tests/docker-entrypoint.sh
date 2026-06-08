@@ -99,6 +99,13 @@ for f in queries.hurl relations.hurl search.hurl; do
   echo ""
 done
 
+# Seed user_permissions for subquery row filter tests
+PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
+    ('tenant-alpha', 'tenant-alpha', 'test'),
+    ('tenant-beta', 'tenant-beta', 'test');
+" > /dev/null 2>&1
+
 # Run RLS tests last (they create and clean up their own data)
 for f in row_filters.hurl; do
   name="$(basename "$f")"

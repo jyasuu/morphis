@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useMutation } from "urql";
 import type { EntityInfo, FieldInfo } from "@/lib/types";
-import { buildCreateMutation, buildUpdateMutation, buildDeleteMutation } from "@/lib/query-builder";
+import { buildCreateMutation, buildUpdateMutation, buildDeleteMutation, pkId } from "@/lib/query-builder";
 import { DynamicTable } from "./dynamic-table";
 import { DynamicForm } from "./dynamic-form";
 import { Modal } from "./modal";
@@ -77,7 +77,7 @@ export function RelationPanel({
     }
     const pk = editingRecord?.[relatedPk];
     if (!pk) return;
-    const res = await updateMut({ id: String(pk), input });
+    const res = await updateMut({ id: pkId(relatedEntity, String(pk)), input });
     if (res.error) throw new Error(res.error.message);
     showToast(t("relationPanel.updated"));
     setModalOpen(null);
@@ -90,8 +90,8 @@ export function RelationPanel({
   }
 
   async function confirmDelete() {
-    if (!deleteTarget) return;
-    const res = await deleteMut({ id: deleteTarget });
+    if (!deleteTarget || !relatedEntity) return;
+    const res = await deleteMut({ id: pkId(relatedEntity, deleteTarget) });
     setDeleteTarget(null);
     if (res.error) {
       showToast(t("relationPanel.deleteFailed", { msg: res.error.message }), "error");

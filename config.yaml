@@ -25,6 +25,9 @@ tables:
         type: string
         nullable: false
         default: "'active'"
+      - name: tenant_id
+        type: string
+        nullable: true
     row_filters:
       - column: tenant_id
         from_header: X-Tenant-ID

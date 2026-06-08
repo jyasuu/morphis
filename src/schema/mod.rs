@@ -91,12 +91,6 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
         if table_config.primary_key.is_empty() {
             panic!("Table '{}' has no primary_key defined", name);
         }
-        if table_config.primary_key.len() > 1 {
-            panic!(
-                "Table '{}' has composite primary key ({:?}); only single-column PKs are supported",
-                name, table_config.primary_key
-            );
-        }
         let name_caps = util::capitalize_first(name);
         let filter = input::build_filter_input(&name_caps, table_config);
         schema_builder = schema_builder.register(filter);

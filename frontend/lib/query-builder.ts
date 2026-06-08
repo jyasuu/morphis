@@ -4,6 +4,22 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function pkGraphQLType(entity: EntityInfo): string {
+  const pkField = entity.fields.find((f) => f.name === entity.primaryKey);
+  if (pkField?.scalarType === "Int" || pkField?.scalarType === "Int64") {
+    return "Int";
+  }
+  return "String";
+}
+
+export function pkId(entity: EntityInfo, raw: string): string | number {
+  const pkField = entity.fields.find((f) => f.name === entity.primaryKey);
+  if (pkField?.scalarType === "Int" || pkField?.scalarType === "Int64") {
+    return parseInt(raw, 10);
+  }
+  return raw;
+}
+
 export function buildListQuery(
   entity: EntityInfo,
   paginate?: { limit: number; sortField?: string; sortDir?: "asc" | "desc" }
@@ -66,8 +82,9 @@ export function buildDetailQuery(
 
   const selection = parts.join("\n      ");
   const cap = capitalize(entity.name);
+  const idType = pkGraphQLType(entity);
 
-  return `query ${cap}DetailQuery($id: String!) {
+  return `query ${cap}DetailQuery($id: ${idType}!) {
     ${entity.name}(id: $id) {
       ${selection}
     }
@@ -94,8 +111,9 @@ export function buildUpdateMutation(entity: EntityInfo): string {
   );
   const returnFields = scalarFields.map((f) => f.name).join("\n      ");
   const cap = capitalize(entity.name);
+  const idType = pkGraphQLType(entity);
 
-  return `mutation ${cap}Update($id: String!, $input: Update${cap}Input!) {
+  return `mutation ${cap}Update($id: ${idType}!, $input: Update${cap}Input!) {
     update${cap}(id: $id, input: $input) {
       ${returnFields}
     }
@@ -108,7 +126,8 @@ export function buildDeleteMutation(entity: EntityInfo): string {
   );
   const returnFields = scalarFields.map((f) => f.name).join("\n      ");
   const cap = capitalize(entity.name);
-  return `mutation ${cap}Delete($id: String!) {
+  const idType = pkGraphQLType(entity);
+  return `mutation ${cap}Delete($id: ${idType}!) {
     delete${cap}(id: $id) {
       ${returnFields}
     }

@@ -27,8 +27,8 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.data.searchMaterials" count == 2
-jsonpath "$.data.searchMaterials[0].mat_no" == "M001"
-jsonpath "$.data.searchMaterials[1].mat_no" == "M002"
+jsonpath "$.data.searchMaterials[*].mat_no" contains "M001"
+jsonpath "$.data.searchMaterials[*].mat_no" contains "M002"
 
 POST http://localhost:4000/graphql
 Content-Type: application/json

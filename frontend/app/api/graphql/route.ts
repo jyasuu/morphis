@@ -66,12 +66,12 @@ async function proxyToBackend(body: unknown) {
     return NextResponse.json({ error: "Backend unreachable" }, { status: 502 });
   }
   let data;
+  const bodyText = await res.text();
   try {
-    data = await res.json();
+    data = JSON.parse(bodyText);
   } catch (e) {
     console.error("Failed to parse backend response:", e, "status:", res.status);
-    const text = await res.text();
-    console.error("Backend response body:", text.slice(0, 500));
+    console.error("Backend response body:", bodyText.slice(0, 500));
     return NextResponse.json({ error: "Invalid backend response" }, { status: 502 });
   }
   return NextResponse.json(data);

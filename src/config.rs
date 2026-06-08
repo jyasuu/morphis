@@ -35,6 +35,10 @@ pub struct SearchJoinConfig {
     pub table: String,
     pub local_field: String,
     pub foreign_field: String,
+    #[serde(default)]
+    pub local_fields: Vec<String>,
+    #[serde(default)]
+    pub foreign_fields: Vec<String>,
     pub searchable_fields: Vec<String>,
     #[serde(default)]
     pub join_fields: Vec<SearchJoinConfig>,
@@ -219,6 +223,22 @@ pub struct RelationConfig {
     pub table: String,
     pub local_field: String,
     pub foreign_field: String,
+    #[serde(default)]
+    pub local_fields: Vec<String>,
+    #[serde(default)]
+    pub foreign_fields: Vec<String>,
+}
+
+impl RelationConfig {
+    pub fn field_pairs(&self) -> Vec<(&str, &str)> {
+        if !self.local_fields.is_empty() && !self.foreign_fields.is_empty() {
+            self.local_fields.iter().zip(self.foreign_fields.iter())
+                .map(|(l, f)| (l.as_str(), f.as_str()))
+                .collect()
+        } else {
+            vec![(self.local_field.as_str(), self.foreign_field.as_str())]
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

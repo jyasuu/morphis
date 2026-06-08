@@ -9,6 +9,7 @@ import {
   buildListQuery,
   buildDeleteMutation,
   buildSearchQuery,
+  pkId,
 } from "@/lib/query-builder";
 import { DynamicTable } from "@/components/dynamic-table";
 import { SearchBar } from "@/components/search-bar";
@@ -171,7 +172,7 @@ function EntityListContent({
   async function handleDelete(pk: string) {
     const ok = await confirm.confirm(t("confirm.defaultTitle"), t("confirm.defaultMessage"));
     if (!ok) return;
-    const res = await deleteMut({ id: pk });
+    const res = await deleteMut({ id: pkId(entity, pk) });
     if (res.error) {
       showToast(t("toast.deleteFailed", { msg: res.error.message }), "error");
     } else {

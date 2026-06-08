@@ -18,6 +18,9 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
   const scalarFields = entity.fields.filter(
     (f) => f.kind === "scalar" && !f.autoIncrement
   );
+  const visibleFields = scalarFields.filter(
+    (f) => !getFieldControl(entity.name, f.name).hidden
+  );
   const [values, setValues] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
     for (const f of scalarFields) {
@@ -45,7 +48,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
   }
 
   function renderField(fieldName: string) {
-    const f = scalarFields.find((sf) => sf.name === fieldName)!;
+    const f = visibleFields.find((sf) => sf.name === fieldName)!;
     const ctrl = getFieldControl(entity.name, fieldName);
     const id = `field-${fieldName}`;
 
@@ -101,7 +104,7 @@ export function DynamicForm({ entity, initial, mode, onSubmit }: Props) {
   return (
     <Card>
       <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
-        {scalarFields.map((f) => renderField(f.name))}
+        {visibleFields.map((f) => renderField(f.name))}
         {error && (
           <div className="text-red-600 text-sm">{error}</div>
         )}

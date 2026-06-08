@@ -39,7 +39,10 @@ export function DynamicTable({
 }: Props) {
   const t = useT();
   const scalarFields = entity.fields.filter((f) => f.kind === "scalar");
-  const hiddenFields = new Set(entity.autoIncrementFields);
+  const hiddenFields = new Set([
+    ...entity.autoIncrementFields,
+    ...scalarFields.filter((f) => getFieldControl(entity.name, f.name).hidden).map((f) => f.name),
+  ]);
 
   if (loading) {
     return <div className="p-4"><TableSkeleton rows={6} cols={scalarFields.length} /></div>;

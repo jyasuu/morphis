@@ -3,6 +3,7 @@ import config from "@/config/entity-metadata.json";
 export interface FieldControl {
   control: "text" | "select";
   options?: { label: string; value: string }[];
+  hidden?: boolean;
 }
 
 export interface RelationFilterMeta {

@@ -20,6 +20,10 @@
           { "label": "Active", "value": "active" },
           { "label": "Discontinued", "value": "discontinued" }
         ]
+      },
+      "tenant_id": {
+        "control": "text",
+        "hidden": true
       }
     },
     "feature_attributes": {
