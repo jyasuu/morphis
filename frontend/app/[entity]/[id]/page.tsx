@@ -55,6 +55,8 @@ function EntityDetailContent({
   }
 
   const perms = getPermissions(entityName);
+  const canUpdate = perms.update && entity.capabilities.update;
+  const canDelete = perms.delete && entity.capabilities.delete;
   const hasManyFields = entity.fields.filter((f) => f.kind === "has_many");
 
   const handleMutation = useCallback(() => {
@@ -81,7 +83,7 @@ function EntityDetailContent({
           <h1 className="text-xl font-semibold mb-1">
             {t.entity(entityName)}: {String(record[entity.primaryKey] ?? id)}
           </h1>
-          {perms.update ? (
+          {canUpdate ? (
             <>
               <p className="text-xs text-[var(--text-muted)] mb-4">{t("detail.editRecord")}</p>
               <DynamicForm

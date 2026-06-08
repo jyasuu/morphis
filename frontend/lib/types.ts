@@ -5,6 +5,15 @@ export interface EntityInfo {
   autoIncrementFields: string[]
   hasSearch: boolean
   searchFilterFields?: SearchFilterFieldInfo[]
+  capabilities: EntityCapabilities
+}
+
+export interface EntityCapabilities {
+  list: boolean
+  detail: boolean
+  create: boolean
+  update: boolean
+  delete: boolean
 }
 
 export interface SearchFilterFieldInfo {

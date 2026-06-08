@@ -32,18 +32,19 @@ pub(crate) fn build_mutation_object(
     let mut mutation = Object::new("Mutation");
 
     for (name, table_name, table_config) in tables {
-        let create_table_name = table_name.clone();
-        let create_table_config = table_config.clone();
-        let create_row_filters = table_config.row_filters.clone();
-
         let name_caps = capitalize_first(name);
         let pk_args = build_pk_args(table_config);
 
-        mutation = mutation.field(
-            Field::new(
-                format!("create{}", name_caps),
-                TypeRef::named_nn(table_name.clone()),
-                move |ctx| {
+        if table_config.crud.create {
+            let create_table_name = table_name.clone();
+            let create_table_config = table_config.clone();
+            let create_row_filters = table_config.row_filters.clone();
+
+            mutation = mutation.field(
+                Field::new(
+                    format!("create{}", name_caps),
+                    TypeRef::named_nn(table_name.clone()),
+                    move |ctx| {
                     let table_config = create_table_config.clone();
                     let table_name = create_table_name.clone();
                     let row_filters = create_row_filters.clone();
@@ -112,12 +113,14 @@ pub(crate) fn build_mutation_object(
                 "input",
                 TypeRef::named_nn(format!("Create{}Input", name_caps)),
             )),
-        );
+            );
+        }
 
-        let update_table_name = table_name.clone();
-        let update_table_config = table_config.clone();
-        let update_pk_args = pk_args.clone();
-        let update_row_filters = table_config.row_filters.clone();
+        if table_config.crud.update {
+            let update_table_name = table_name.clone();
+            let update_table_config = table_config.clone();
+            let update_pk_args = pk_args.clone();
+            let update_row_filters = table_config.row_filters.clone();
 
         let mut update_field = Field::new(
             format!("update{}", name_caps),
@@ -192,10 +195,12 @@ pub(crate) fn build_mutation_object(
                 TypeRef::named_nn(format!("Update{}Input", name_caps)),
             ))
         );
+        }
 
-        let delete_table_name = table_name.clone();
-        let delete_pk_args = pk_args.clone();
-        let delete_row_filters = table_config.row_filters.clone();
+        if table_config.crud.delete {
+            let delete_table_name = table_name.clone();
+            let delete_pk_args = pk_args.clone();
+            let delete_row_filters = table_config.row_filters.clone();
 
         let mut delete_field = Field::new(
             format!("delete{}", name_caps),
@@ -243,6 +248,7 @@ pub(crate) fn build_mutation_object(
             delete_field = delete_field.argument(InputValue::new(arg_name.clone(), arg_type));
         }
         mutation = mutation.field(delete_field);
+        }
     }
 
     mutation

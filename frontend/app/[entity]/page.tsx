@@ -187,6 +187,13 @@ function EntityListContent({
   }
 
   const perms = getPermissions(entityName);
+  const effectivePerms = {
+    create: perms.create && entity.capabilities.create,
+    update: perms.update && entity.capabilities.update,
+    delete: perms.delete && entity.capabilities.delete,
+    list: perms.list && entity.capabilities.list,
+    read: perms.read && entity.capabilities.detail,
+  };
   const hasMore = data.length >= PAGE_SIZE;
 
   return (
@@ -194,7 +201,7 @@ function EntityListContent({
       <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entity.name) }]} />
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">{t.entity(entity.name)}</h1>
-        {perms.create && (
+        {effectivePerms.create && (
           <button
             onClick={() => router.push(`/${entityName}/new`)}
             className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e]"
@@ -236,10 +243,10 @@ function EntityListContent({
           onView={(pk) =>
             router.push(`/${entityName}/${encodeURIComponent(pk)}`)
           }
-          onEdit={perms.update ? (pk) =>
+          onEdit={effectivePerms.update ? (pk) =>
             router.push(`/${entityName}/${encodeURIComponent(pk)}`) : undefined}
-          onDelete={perms.delete ? handleDelete : undefined}
-          perm={{ update: perms.update, delete: perms.delete }}
+          onDelete={effectivePerms.delete ? handleDelete : undefined}
+          perm={{ update: effectivePerms.update, delete: effectivePerms.delete }}
           loading={result.fetching || andedLoading}
         />
 

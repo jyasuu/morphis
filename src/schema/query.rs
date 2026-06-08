@@ -29,6 +29,7 @@ pub(crate) fn build_query_object(_config: &Config, tables: &[(String, String, Ta
     let mut query = Object::new("Query");
 
     for (name, table_name, table_config) in tables {
+        if !table_config.crud.read { continue; }
         let pk_args = build_pk_args(table_config);
         let tn = table_name.clone();
         let row_filters = table_config.row_filters.clone();

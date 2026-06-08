@@ -150,6 +150,11 @@ export async function loadSchema(): Promise<SchemaCache> {
     queryFields[f.name] = f;
   }
 
+  const mutationFields: Record<string, any> = {};
+  for (const f of schema.mutationType?.fields || []) {
+    mutationFields[f.name] = f;
+  }
+
   const entityNames = new Set<string>();
   for (const name of Object.keys(queryFields)) {
     const m = name.match(/^(.+?)List$/);
@@ -235,6 +240,12 @@ export async function loadSchema(): Promise<SchemaCache> {
     }
 
     const hasSearch = searchNames.has(cap) || searchNames.has(name);
+    const listQuery = queryFields[`${name}List`];
+    const detailQuery = queryFields[name];
+    const createMut = mutationFields[`create${cap}`];
+    const updateMut = mutationFields[`update${cap}`];
+    const deleteMut = mutationFields[`delete${cap}`];
+
     let searchFilterFields: SearchFilterFieldInfo[] | undefined;
 
     if (hasSearch) {
@@ -268,6 +279,13 @@ export async function loadSchema(): Promise<SchemaCache> {
       autoIncrementFields,
       hasSearch,
       searchFilterFields,
+      capabilities: {
+        list: !!listQuery,
+        detail: !!detailQuery,
+        create: !!createMut,
+        update: !!updateMut,
+        delete: !!deleteMut,
+      },
     };
   }
 

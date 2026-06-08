@@ -164,6 +164,23 @@ pub struct TableConfig {
     pub relations: Vec<RelationConfig>,
     #[serde(default)]
     pub row_filters: Vec<RowFilterConfig>,
+    #[serde(default)]
+    pub crud: CrudConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct CrudConfig {
+    pub create: bool,
+    pub read: bool,
+    pub update: bool,
+    pub delete: bool,
+}
+
+impl Default for CrudConfig {
+    fn default() -> Self {
+        Self { create: true, read: true, update: true, delete: true }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

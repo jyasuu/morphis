@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "urql";
 import { useParams, useRouter } from "next/navigation";
 import type { EntityInfo } from "@/lib/types";
