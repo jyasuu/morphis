@@ -20,6 +20,48 @@ Set `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET` to enab
 Optionally set `AUTH_OIDC_NAME` (default: "SSO") for the button label.
 For the login page button visibility, also set `NEXT_PUBLIC_AUTH_OIDC_NAME` to the same value.
 
+### Integration test: frontend → auth-proxy → morphis
+
+Run the full chain through auth-proxy (JWT validation):
+
+```bash
+# 1. Start Docker services
+docker compose up -d db es app auth-proxy
+
+# 2. Seed auth tables (first time only)
+docker compose exec -T db psql -U postgres -d morphis -c "
+CREATE TABLE IF NOT EXISTS user_permissions (
+  id SERIAL PRIMARY KEY, user_id VARCHAR(100) NOT NULL,
+  tenant_id VARCHAR(100) NOT NULL, region VARCHAR(100) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS protected_data (
+  id VARCHAR(100) PRIMARY KEY, name VARCHAR(100) NOT NULL,
+  value VARCHAR(100), region VARCHAR(100)
+);
+INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
+  ('admin', 'default', 'main') ON CONFLICT DO NOTHING;
+INSERT INTO protected_data (id, name, value, region) VALUES
+  ('PD001', 'Test Secret', 'sensitive-value', 'main') ON CONFLICT DO NOTHING;
+ALTER TABLE materials ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100);
+UPDATE materials SET tenant_id = 'default' WHERE tenant_id IS NULL;
+"
+
+# 3. Seed ES
+bash seed_es.sh
+
+# 4. Start frontend pointing to auth-proxy
+AUTH_SECRET=dev-secret-do-not-use-in-prod AUTH_DISABLED=true \
+  GRAPHQL_URL=http://localhost:9080 \
+  AUTH_PROXY_JWT_SECRET=test-secret-key-for-integration-tests \
+  npx next dev --port 3000
+
+# 5. In another terminal, run tests
+AUTH_SECRET=dev-secret-do-not-use-in-prod AUTH_DISABLED=true \
+  GRAPHQL_URL=http://localhost:9080 \
+  AUTH_PROXY_JWT_SECRET=test-secret-key-for-integration-tests \
+  npx playwright test --workers 1
+```
+
 ## Runtime i18n
 
 Locale files live in `public/locales/` and are fetched at runtime by the browser — no rebuild needed.
