@@ -1,45 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Full integration check from zero: builds, starts services, sets up Keycloak,
-# seeds ES, runs hurl test suite.
-# Prerequisites: Docker, Docker Compose, Python 3
+# Full backend integration check from zero: builds, starts services,
+# sets up Keycloak, seeds ES, runs hurl test suite.
+# Usage: ./scripts/integration-check.sh [--skip-build]
 
 cd "$(dirname "$0")/.."
+source scripts/common.sh
 
-echo "=== 1. Build images ==="
-./build-images.sh
-docker compose build --no-cache tests
-
-echo "=== 2. Start services ==="
-docker compose up -d db es keycloak app auth-proxy
-
-echo "=== 3. Wait for services ==="
-echo "Waiting for Keycloak..."
-for i in $(seq 1 60); do
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/realms/master 2>/dev/null | grep -q 200; then
-        echo "Keycloak ready"
-        break
-    fi
-    sleep 2
+SKIP_BUILD=false
+for arg in "$@"; do
+  [ "$arg" = "--skip-build" ] && SKIP_BUILD=true
 done
 
-echo "Waiting for Morphis..."
-for i in $(seq 1 30); do
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/health 2>/dev/null | grep -q 200; then
-        echo "Morphis ready"
-        break
-    fi
-    sleep 2
-done
+if [ "$SKIP_BUILD" = false ]; then
+  check_step "Build images" ./build-images.sh
+  check_step "Build test image" docker compose build --no-cache tests
+else
+  echo "=== Skipping build ==="
+fi
 
-echo "=== 4. Keycloak setup ==="
-python3 scripts/keycloak-setup.py
+check_step "Start services" docker compose up -d db es keycloak app auth-proxy
 
-echo "=== 5. Seed ES ==="
-bash seed_es.sh
+check_step "Wait for Keycloak" wait_for_http "Keycloak" "http://localhost:8080/realms/master" 200 60
+check_step "Wait for Morphis" wait_for_http "Morphis" "http://localhost:4000/health" 200 30
 
-echo "=== 6. Run hurl tests ==="
-docker compose run --rm tests
+check_step "Keycloak setup" python3 scripts/keycloak-setup.py
+check_step "Seed ES" bash seed_es.sh
+check_step "Run hurl tests" docker compose run --rm tests
 
-echo "=== All checks passed ==="
+echo ""
+echo "=== All backend checks passed ==="

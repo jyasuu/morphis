@@ -61,4 +61,4 @@ docker build -t tests:local "$TMP_DIR/tests"
 
 echo ""
 echo "=== All images built ==="
-docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep ":local"
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep local || true

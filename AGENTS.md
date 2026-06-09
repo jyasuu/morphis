@@ -89,11 +89,27 @@ docker compose down -v && docker compose up -d db es
 
 ### Run integration check from zero
 ```bash
-# Full bootstrap (build, start, setup Keycloak, seed ES, run hurl tests)
-./scripts/integration-check.sh
+# Full bootstrap: build → backend hurl tests → frontend Playwright (all from zero)
+./scripts/run-all.sh
+
+# Backend hurl tests only (skip Playwright for CI without browser)
+./scripts/run-all.sh --no-playwright
+
+# Reuse existing images (skip docker build)
+./scripts/run-all.sh --skip-build
 ```
 
-Or step-by-step:
+Individual scripts (fine-grained):
+```bash
+# Backend only (hurl tests)
+./scripts/integration-check.sh
+./scripts/integration-check.sh --skip-build  # reuse existing images
+
+# Frontend only (Playwright — needs Docker services up + Keycloak setup)
+./scripts/run-frontend-tests.sh
+```
+
+Manual step-by-step:
 ```bash
 ./build-images.sh
 docker compose build --no-cache tests
@@ -126,6 +142,16 @@ bash seed_es.sh
 # 4. Run everything (starts frontend, runs tests, cleans up)
 bash scripts/run-frontend-tests.sh
 ```
+
+Key files in `scripts/`:
+| File | Purpose |
+|---|---|
+| `scripts/run-all.sh` | Master — full bootstrap from zero (backend + frontend) |
+| `scripts/integration-check.sh` | Backend only: build → start → Keycloak → seed → hurl |
+| `scripts/run-frontend-tests.sh` | Frontend only: start dev server → Playwright → cleanup |
+| `scripts/keycloak-setup.py` | Keycloak realm/client/user/protocol-mapper setup via API |
+| `scripts/common.sh` | Shared helpers (`wait_for_http`, `check_step`) |
+| `scripts/.env.frontend` | Shared env vars for frontend tests |
 
 ### Keycloak JWT/auth-proxy troubleshooting
 - **"Account is not fully set up"** — User must have `firstName` + `lastName` set (Keycloak 26 User Profile requirement for direct grant).
