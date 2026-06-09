@@ -47,7 +47,12 @@ async function proxyToBackend(body: unknown) {
   const user = session?.user ?? { role: "admin", email: null, name: null };
   const tenantId = getTenantId(user);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (JWT_SECRET) {
+
+  // Pass through Keycloak JWT when available (OIDC login path)
+  const accessToken = (session as any)?.accessToken;
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  } else if (JWT_SECRET) {
     headers["Authorization"] = `Bearer ${signJwt({ sub: user.email || user.name || "admin", tenant_id: tenantId, role: user.role }, JWT_SECRET)}`;
   } else {
     headers["X-Tenant-ID"] = tenantId;

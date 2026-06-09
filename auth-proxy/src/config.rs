@@ -4,7 +4,12 @@ use serde::Deserialize;
 pub struct ProxyConfig {
     pub listen_addr: String,
     pub upstream: String,
+    #[serde(default)]
     pub jwt_secret: String,
+    #[serde(default)]
+    pub jwt_jwks_url: String,
+    #[serde(default)]
+    pub jwt_issuer: String,
     #[serde(default = "default_require_auth")]
     pub require_auth: bool,
     pub header_mappings: Vec<HeaderMapping>,

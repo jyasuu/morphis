@@ -87,6 +87,53 @@ docker compose down -v && docker compose up -d db es
 ./build-images.sh tests # test runner only
 ```
 
+### Run integration check from zero
+```bash
+# Full bootstrap (build, start, setup Keycloak, seed ES, run hurl tests)
+./scripts/integration-check.sh
+```
+
+Or step-by-step:
+```bash
+./build-images.sh
+docker compose build --no-cache tests
+docker compose up -d db es keycloak app auth-proxy
+python3 scripts/keycloak-setup.py
+bash seed_es.sh
+docker compose run --rm tests
+```
+
+### Frontend Playwright integration tests
+| File | What it tests |
+|---|---|
+| `frontend/tests/auth-chain.spec.ts` | Full Keycloak OIDC login → frontend → auth-proxy → API |
+| `frontend/tests/entities.spec.ts` | Entity picker, navigation (uses AUTH_DISABLED=true) |
+| `frontend/tests/crud.spec.ts` | Material CRUD via UI (uses AUTH_DISABLED=true) |
+
+The frontend API route (`app/api/graphql/route.ts`) passes through the Keycloak JWT when an OIDC session exists (auth.ts stores `account.access_token` in `session.accessToken`). When no OIDC token is available (Credentials login or AUTH_DISABLED=true), it falls back to self-signed HS256 JWTs via `AUTH_PROXY_JWT_SECRET`.
+
+#### Run frontend Playwright tests (full Keycloak chain)
+```bash
+# 1. Ensure Docker services are up with Keycloak hostname
+docker compose up -d db es keycloak app auth-proxy
+
+# 2. Keycloak setup
+python3 scripts/keycloak-setup.py
+
+# 3. Seed ES
+bash seed_es.sh
+
+# 4. Run everything (starts frontend, runs tests, cleans up)
+bash scripts/run-frontend-tests.sh
+```
+
+### Keycloak JWT/auth-proxy troubleshooting
+- **"Account is not fully set up"** — User must have `firstName` + `lastName` set (Keycloak 26 User Profile requirement for direct grant).
+- **Custom attributes not in JWT** — Must (1) register in User Profile via `PUT /admin/realms/{realm}/users/profile`, (2) add protocol mappers on client, (3) set attributes on user. Order matters: profile first.
+- **JWT validation fails** — If auth-proxy logs show `Skipping JWK` for encryption keys, that's normal. If all keys are skipped, check `require_auth` config. If validation still fails, check `aud` — Keycloak tokens include `aud: "account"` and `jsonwebtoken` enables `validate_aud: true` by default. Set `validation.validate_aud = false` in auth-proxy if not checking audience.
+- **Keycloak hostname** — Set `KC_HOSTNAME_URL=http://localhost:8080` on Keycloak so OIDC discovery returns `localhost` URLs the browser can reach. Set auth-proxy `jwt_issuer: ""` to skip issuer validation when hostname differs between internal/external access.
+- **Playwright needs system deps** — `apt-get install -y libnspr4 libnss3 libgbm1 libasound2` for headless Chromium.
+
 ### Key conventions
 - **GraphQL naming**: Table names use the config's `name:` field as-is. `user_permissions` → `user_permissionsList`, `createUser_permissions`, `deleteUser_permissions` (underscores preserved, no camelCase).
 - **has_many ORDER**: Always `ORDER BY t.<primary_key>` inside `json_agg` — needed for deterministic results.

@@ -32,6 +32,7 @@ function oidcProvider() {
 
 declare module "next-auth" {
   interface Session {
+    accessToken?: string;
     user: {
       id?: string;
       name?: string | null;
@@ -47,6 +48,7 @@ declare module "@auth/core/jwt" {
   interface JWT {
     role: string;
     provider: string;
+    accessToken?: string;
   }
 }
 
@@ -79,12 +81,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.role = (user as any).role || "user";
         token.provider = account?.provider || "credentials";
+        if (account?.provider === "oidc" && account?.access_token) {
+          token.accessToken = account.access_token as string;
+        }
       }
       return token;
     },
     async session({ session, token }) {
       session.user.role = token.role as string;
       session.user.provider = token.provider as string;
+      session.accessToken = token.accessToken as string;
       return session;
     },
   },

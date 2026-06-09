@@ -9,6 +9,29 @@ done
 echo "  app is ready"
 
 echo ""
+echo "=== Waiting for Keycloak ==="
+until curl -sf http://keycloak:8080/realms/morphis > /dev/null 2>&1; do
+  echo "  waiting for keycloak:8080 ..."
+  sleep 3
+done
+echo "  keycloak is ready"
+
+echo ""
+echo "=== Getting Keycloak token ==="
+KEYCLOAK_TOKEN=$(curl -s -X POST http://keycloak:8080/realms/morphis/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'client_id=morphis-test' \
+  -d 'client_secret=morphis-test-secret' \
+  -d 'grant_type=password' \
+  -d 'username=testuser' \
+  -d 'password=testpass' | jq -r '.access_token')
+if [ -z "$KEYCLOAK_TOKEN" ] || [ "$KEYCLOAK_TOKEN" = "null" ]; then
+  echo "  ERROR: Failed to get Keycloak token"
+  exit 1
+fi
+echo "  got token: ${KEYCLOAK_TOKEN:0:20}..."
+
+echo ""
 echo "=== Seeding Elasticsearch ==="
 ES_URL=http://es:9200 /tests/seed_es.sh
 
@@ -46,7 +69,7 @@ echo ""
 echo "=== Adjusting test URLs for Docker ==="
 cd /tests
 for f in *.hurl; do
-  sed -i 's|http://localhost:4000|http://app:4000|g; s|http://localhost:9200|http://es:9200|g' "$f"
+  sed -i 's|http://localhost:4000|http://app:4000|g; s|http://localhost:9200|http://es:9200|g; s|http://localhost:9080|http://auth-proxy:9080|g' "$f"
   echo "  patched $f"
 done
 
@@ -111,6 +134,19 @@ for f in row_filters.hurl; do
   name="$(basename "$f")"
   echo "--- $name ---"
   if hurl --test "$f"; then
+    echo "  PASS"
+  else
+    echo "  FAIL"
+    FAIL=1
+  fi
+  echo ""
+done
+
+echo "=== Auth-proxy + Keycloak tests ==="
+for f in auth_proxy.hurl; do
+  name="$(basename "$f")"
+  echo "--- $name ---"
+  if hurl --test --variable "TOKEN=$KEYCLOAK_TOKEN" "$f"; then
     echo "  PASS"
   else
     echo "  FAIL"
