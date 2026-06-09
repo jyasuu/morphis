@@ -26,7 +26,7 @@ done
 
 echo "Waiting for Morphis..."
 for i in $(seq 1 30); do
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/health 2>/dev/null | grep -q 200; then
+    if curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/health 2>/dev/null | grep -q 200; then
         echo "Morphis ready"
         break
     fi

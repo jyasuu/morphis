@@ -49,6 +49,8 @@
   "users": [
     {
       "username": "testuser",
+      "firstName": "Test",
+      "lastName": "User",
       "enabled": true,
       "email": "testuser@morphis.test",
       "emailVerified": true,
