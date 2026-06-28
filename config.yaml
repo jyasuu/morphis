@@ -31,7 +31,9 @@ mcp:
       values — the relation name comes from discover_tables. Use query for direct
       table filters, search for full-text across indexes, get for primary key lookup.
       Use graphql when you need nested related data in a single call — e.g. materials
-      with their sizes, colorways, and features all at once."
+      with their sizes, colorways, and features all at once.
+      Use graphql_schema to learn the exact GraphQL query syntax: query names, filter
+      arguments, and available nested fields before calling graphql."
   auth:
     enabled: false
 

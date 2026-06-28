@@ -666,6 +666,129 @@ impl MorphisMCPServer {
 
         Ok(CallToolResult::success(vec![Content::text(formatted)]))
     }
+
+    /// Introspect the GraphQL schema and return available queries with their arguments, filter fields, and nested relation types.
+    /// Use this to learn the exact GraphQL query syntax before calling graphql.
+    #[tool(description = "Get the GraphQL schema: all queryable fields, filter arguments, and available nested relations. Call this before graphql to learn the exact query syntax.")]
+    async fn graphql_schema(&self) -> Result<CallToolResult, McpError> {
+        let url = format!(
+            "http://localhost:{}/graphql",
+            self.config.server.port
+        );
+        let introspect_query = r#"
+        {
+          __schema {
+            queryType {
+              fields {
+                name
+                description
+                args {
+                  name
+                  description
+                  type { name kind ofType { name kind ofType { name kind } } }
+                }
+                type { name kind ofType { name kind ofType { name kind ofType { name kind } } } }
+              }
+            }
+            types { name kind fields { name } }
+          }
+        }
+        "#;
+
+        let client = reqwest::Client::new();
+        let resp = client
+            .post(&url)
+            .json(&serde_json::json!({ "query": introspect_query }))
+            .send()
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    format!("Introspection request failed: {}", e),
+                    None::<serde_json::Value>,
+                )
+            })?;
+
+        let data: serde_json::Value = resp.json().await.map_err(|e| {
+            McpError::internal_error(
+                format!("Failed to parse introspection response: {}", e),
+                None::<serde_json::Value>,
+            )
+        })?;
+
+        let fields = data["data"]["__schema"]["queryType"]["fields"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+
+        let mut type_fields: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        if let Some(types) = data["data"]["__schema"]["types"].as_array() {
+            for t in types {
+                let tname = t["name"].as_str().unwrap_or("");
+                if tname.starts_with("__") { continue; }
+                let names: Vec<String> = t["fields"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|f| f["name"].as_str().map(|s| s.to_string()))
+                            .filter(|n| !n.starts_with("__"))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                type_fields.insert(tname.to_string(), names);
+            }
+        }
+
+        let mut result = Vec::new();
+        for field in &fields {
+            let name = field["name"].as_str().unwrap_or("");
+            let desc = field["description"].as_str().unwrap_or("").to_string();
+            let type_name = extract_type_name(field);
+
+            let args: Vec<serde_json::Value> = field["args"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .map(|a| {
+                            let aname = a["name"].as_str().unwrap_or("");
+                            let atype = extract_type_name(a);
+                            let adesc = a["description"].as_str().unwrap_or("");
+                            serde_json::json!({
+                                "name": aname,
+                                "type": atype,
+                                "description": adesc,
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let type_name_clean = type_name.trim_end_matches('!').trim_start_matches('[').trim_end_matches(']').trim_end_matches('!').to_string();
+            let nested: Vec<String> = type_fields.get(&type_name_clean)
+                .cloned()
+                .unwrap_or_default();
+
+            result.push(serde_json::json!({
+                "query": name,
+                "description": if desc.is_empty() { serde_json::Value::Null } else { serde_json::json!(desc) },
+                "return_type": type_name,
+                "arguments": args,
+                "nested_fields": if nested.is_empty() { serde_json::Value::Null } else { serde_json::json!(nested) },
+            }));
+        }
+
+        let output = serde_json::json!({
+            "graphql_queries": result,
+            "note": "Use these query names and arguments in the graphql tool. Nested fields can be included in the selection set.",
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&output)
+                .map_err(|e| McpError::internal_error(
+                    format!("Failed to format schema: {}", e),
+                    None::<serde_json::Value>,
+                ))?
+        )]))
+    }
 }
 
 impl ServerHandler for MorphisMCPServer {
@@ -1177,6 +1300,42 @@ fn pk_value_to_string(v: &serde_json::Value, is_int: bool) -> Result<String, Mcp
                 )
             })
     }
+}
+
+// ── GraphQL introspection helpers ────────────────────────────────
+
+fn extract_type_name(field: &serde_json::Value) -> String {
+    let t = &field["type"];
+    let kind = t["kind"].as_str().unwrap_or("");
+    if kind == "NON_NULL" {
+        if let Some(of) = t["ofType"].as_object() {
+            let inner_kind = of.get("kind").and_then(|k| k.as_str()).unwrap_or("");
+            if inner_kind == "LIST" {
+                let inner_name = resolve_named_type(&t["ofType"]["ofType"]);
+                format!("[{}]!", inner_name)
+            } else {
+                let name = of.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                format!("{}!", name)
+            }
+        } else {
+            "unknown".to_string()
+        }
+    } else if kind == "LIST" {
+        let inner_name = resolve_named_type(&t["ofType"]);
+        format!("[{}]", inner_name)
+    } else {
+        t.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string()
+    }
+}
+
+fn resolve_named_type(t: &serde_json::Value) -> String {
+    if let Some(name) = t["name"].as_str() {
+        if !name.is_empty() { return name.to_string(); }
+    }
+    if let Some(of) = t["ofType"].as_object() {
+        return resolve_named_type(&serde_json::Value::Object(of.clone()));
+    }
+    "unknown".to_string()
 }
 
 // ── ES helpers (adapted from schema/search.rs) ──────────────────
