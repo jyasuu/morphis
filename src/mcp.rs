@@ -94,34 +94,47 @@ impl MorphisMCPServer {
         })
     }
 
-    /// Discover all available tables with their schemas, prompts, and search indexes.
-    #[tool(description = "Discover available tables, their columns, types, prompts, and search indexes. Always call this first to understand what data is available.")]
-    async fn discover_tables(&self) -> Result<CallToolResult, McpError> {
+    /// Discover available tables with progressive detail.
+    /// Call with no args (or detail: false) for a lightweight overview — table names, prompts,
+    /// relations, and search indexes. Call with detail: true to get full column info
+    /// (types, prompts, examples, nullable, primary key flags).
+    #[tool(description = "Discover available tables, their prompts, relations, and search indexes. Always call this first. Pass detail:true to also get full column types, prompts, and examples for every table.")]
+    async fn discover_tables(
+        &self,
+        Parameters(args): Parameters<DiscoverTablesArgs>,
+    ) -> Result<CallToolResult, McpError> {
         let mut tables = serde_json::Map::new();
         for name in self.config.tables.keys() {
             if let Some(info) = self.col_info(name) {
                 let mut obj = serde_json::Map::new();
                 obj.insert("db_table".into(), serde_json::json!(info.db_table));
                 obj.insert("prompt".into(), serde_json::json!(info.prompt));
-                let cols: Vec<serde_json::Value> = info
-                    .columns
-                    .iter()
-                    .map(|c| {
-                        let mut m = serde_json::Map::new();
-                        m.insert("name".into(), serde_json::json!(c.name));
-                        m.insert("type".into(), serde_json::json!(c.col_type));
-                        m.insert("nullable".into(), serde_json::json!(c.nullable));
-                        m.insert("primary_key".into(), serde_json::json!(c.is_pk));
-                        if let Some(p) = &c.prompt {
-                            m.insert("prompt".into(), serde_json::json!(p));
-                        }
-                        if let Some(ex) = &c.examples {
-                            m.insert("examples".into(), serde_json::json!(ex));
-                        }
-                        serde_json::Value::Object(m)
-                    })
-                    .collect();
-                obj.insert("columns".into(), serde_json::Value::Array(cols));
+
+                if args.detail {
+                    let cols: Vec<serde_json::Value> = info
+                        .columns
+                        .iter()
+                        .map(|c| {
+                            let mut m = serde_json::Map::new();
+                            m.insert("name".into(), serde_json::json!(c.name));
+                            m.insert("type".into(), serde_json::json!(c.col_type));
+                            m.insert("nullable".into(), serde_json::json!(c.nullable));
+                            m.insert("primary_key".into(), serde_json::json!(c.is_pk));
+                            if let Some(p) = &c.prompt {
+                                m.insert("prompt".into(), serde_json::json!(p));
+                            }
+                            if let Some(ex) = &c.examples {
+                                m.insert("examples".into(), serde_json::json!(ex));
+                            }
+                            serde_json::Value::Object(m)
+                        })
+                        .collect();
+                    obj.insert("columns".into(), serde_json::Value::Array(cols));
+                } else {
+                    let col_names: Vec<String> = info.columns.iter().map(|c| c.name.clone()).collect();
+                    obj.insert("columns".into(), serde_json::json!(col_names));
+                }
+
                 obj.insert(
                     "search_indexes".into(),
                     serde_json::json!(info.search_indexes),
@@ -188,10 +201,15 @@ impl MorphisMCPServer {
         )]))
     }
 
-    /// Execute a GraphQL query against the built-in GraphQL endpoint.
-    /// Supports nested relations, filtering, and all features of the GraphQL API.
-    /// Example: { materialsList(filter: {status: "active"}) { mat_no name material_features { feature_name } } }
-    #[tool(description = "Execute a GraphQL query to fetch nested related data in a single call. Use this instead of multiple query/get calls when you need parent + related records together. Example: { materialsList { mat_no name sizes { size_code } colorways { hex } material_features { feature_name feature_attributes { attr_name } } } }")]
+    /// Execute a GraphQL query against the built-in endpoint.
+    /// Supports nested relations, filtering, ordering, pagination, and mutations.
+    ///
+    /// Examples:
+    ///   { materials(limit: 3) { mat_no name status } }
+    ///   { materials(id: "M001") { mat_no name sizes { size_code } colorways { hex } } }
+    ///   { materialsList(filter: { status: "active" }) { mat_no name material_features { feature_name } } }
+    ///   mutation { createMaterials(input: { mat_no: "NEW01", name: "New", status: "active" }) { mat_no } }
+    #[tool(description = "Execute any GraphQL query against the API. Supports nested relations, filtering, pagination, and mutations. Example: { materialsList(limit: 3) { mat_no name sizes { size_code } } }")]
     async fn graphql(
         &self,
         Parameters(args): Parameters<GraphqlArgs>,
@@ -233,9 +251,11 @@ impl MorphisMCPServer {
         Ok(CallToolResult::success(vec![Content::text(formatted)]))
     }
 
-    /// Introspect the GraphQL schema and return available queries with their arguments, filter fields, and nested relation types.
-    /// Use this to learn the exact GraphQL query syntax before calling graphql.
-    #[tool(description = "Get the GraphQL schema: all queryable fields, filter arguments, and available nested relations. Call this before graphql to learn the exact query syntax.")]
+    /// Introspect the GraphQL schema and return every available query with its arguments, return type, and nested fields.
+    /// Use this to learn the exact query names, filter inputs, and relation fields before calling graphql.
+    /// Returns JSON with query name, description, arguments (name/type/description), return type, and nested fields.
+    /// Example response for a query: { "query": "materialsList", "arguments": [ { "name": "filter", "type": "MaterialsFilterInput" }, ... ], "return_type": "[Materials!]!", "nested_fields": ["mat_no", "name", "sizes", ...] }
+    #[tool(description = "Get the GraphQL schema: all query names, filter arguments, return types, and nested fields. Call this before graphql to learn the exact query syntax.")]
     async fn graphql_schema(&self) -> Result<CallToolResult, McpError> {
         let url = format!(
             "http://localhost:{}/graphql",
@@ -368,8 +388,8 @@ impl ServerHandler for MorphisMCPServer {
             })
             .unwrap_or_else(|| {
                 "Morphis Data MCP Server. Use discover_tables to explore available tables, \
-                 query to fetch records with filters, get to retrieve by primary key, \
-                 and search for full-text search."
+                 graphql_schema to learn the GraphQL query syntax, \
+                 and graphql to execute queries with nested relations."
                     .to_string()
             });
         InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
@@ -411,8 +431,17 @@ impl ServerHandler for MorphisMCPServer {
 // ── Parameter Structs ───────────────────────────────────────────
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct DiscoverTablesArgs {
+    /// When true, includes full column details (types, prompts, examples, nullable, primary key flags).
+    /// When false (default), returns overview with column names only — call with detail:true to drill in.
+    #[serde(default)]
+    pub detail: bool,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GraphqlArgs {
-    /// GraphQL query string (supports nested relations, e.g. { materialsList { mat_no name material_features { feature_name } } })
+    /// GraphQL query string. Supports nested relations.
+    /// Example: { materialsList(limit: 3) { mat_no name status sizes { size_code } colorways { hex } } }
     pub query: String,
     /// Optional variables for the query
     #[serde(default)]

@@ -256,11 +256,11 @@ mcp:
 
 | Tool | Description |
 |------|-------------|
-| `discover_tables` | List available tables, columns (type/prompt/examples), relations (has_many/belongs_to with field mappings), and common query patterns. **Always call this first.** |
+| `discover_tables` | List available tables with prompts, relations (type + field mappings), search indexes, and common query patterns. **Always call first.** Pass `detail: true` to include full column types, prompts, and examples (default is lightweight with column names only). |
 | `graphql_schema` | Introspect the GraphQL schema — returns all query names, filter arguments, return types, and available nested fields. Call before `graphql` to learn the exact query syntax. |
 | `graphql` | Execute a raw GraphQL query against the built-in endpoint. Supports nested relations, filtering, ordering, pagination, and mutations. |
 
-The AI workflow: `discover_tables` → learn table/column/relation names → `graphql_schema` → learn query names, filter args, and nested fields → `graphql` → execute queries. No row-level tools — everything goes through `graphql`.
+The AI workflow: `discover_tables` (overview) → `graphql_schema` (learn query syntax) → `graphql` (execute). Call `discover_tables(detail: true)` when you need full column types and examples for a deeper understanding.
 
 For related-table filtering (e.g. "materials with Water Resistant feature"), query the child table and nest the parent:
 ```graphql
