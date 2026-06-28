@@ -16,8 +16,10 @@ INSERT INTO colorways (colorway_code, mat_no, name, hex) VALUES
 INSERT INTO material_features (mat_no, feature_name, description) VALUES
   ('M001', 'Construction', 'Plain weave'),
   ('M001', 'Care', 'Standard care instructions'),
+  ('M001', 'Water Resistant', 'Durable water-repellent finish suitable for outdoor use'),
   ('M002', 'Construction', 'Knitted'),
   ('M002', 'Certification', NULL),
+  ('M002', 'Water Resistant', 'Naturally water-repellent lanolin-rich wool'),
   ('M003', 'Construction', 'Twist'),
   ('M003', 'Eco', 'Recycled materials');
 
@@ -26,11 +28,14 @@ INSERT INTO feature_attributes (feature_id, attr_name, attr_value) VALUES
   (1, 'thread_count', '120'),
   (2, 'wash', '30°C'),
   (2, 'bleach', 'No'),
-  (3, 'weave_type', 'knit'),
-  (3, 'weight', '180 gsm'),
-  (4, 'standard', 'OEKO-TEX'),
-  (4, 'class', 'I'),
-  (5, 'weave_type', 'twist'),
-  (5, 'weight', '150 gsm'),
-  (6, 'recycled_content', '100%'),
-  (6, 'certification', 'GRS');
+  (3, 'type', 'DWR'),
+  (3, 'durability', 'high'),
+  (4, 'weave_type', 'knit'),
+  (4, 'weight', '180 gsm'),
+  (5, 'standard', 'OEKO-TEX'),
+  (5, 'class', 'I'),
+  (6, 'type', 'lanolin'),
+  (7, 'weave_type', 'twist'),
+  (7, 'weight', '150 gsm'),
+  (8, 'recycled_content', '100%'),
+  (8, 'certification', 'GRS');
