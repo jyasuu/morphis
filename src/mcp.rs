@@ -71,7 +71,6 @@ impl MorphisMCPServer {
                 is_pk: cfg.primary_key.contains(&col.name),
             });
         }
-        let pks = cfg.primary_key.clone();
         let search_indexes: Vec<String> = self
             .config
             .search_indexes
@@ -484,6 +483,104 @@ impl MorphisMCPServer {
                 ))?
         )]))
     }
+
+    /// Find parent records based on conditions in a related table.
+    /// E.g. find materials with feature "Water Resistant" by querying table="materials", related="material_features".
+    #[tool(description = "Find parent records based on filters applied to a related (child/joined) table. Uses the relation name from discover_tables. Example: query_by_related(table='materials', related='material_features', filters={'feature_name': 'Water Resistant'}) to find all materials with that feature.")]
+    async fn query_by_related(
+        &self,
+        Parameters(args): Parameters<QueryByRelatedArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let table_name = &args.table;
+        let table_cfg = self.config.tables.get(table_name).ok_or_else(|| {
+            McpError::invalid_params(
+                format!("Table '{}' not found.", table_name),
+                None::<serde_json::Value>,
+            )
+        })?;
+
+        let rel = table_cfg.relations.iter().find(|r| r.name == args.related).ok_or_else(|| {
+            McpError::invalid_params(
+                format!("Relation '{}' not found on table '{}'. Available: {}",
+                    args.related, table_name,
+                    table_cfg.relations.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ")),
+                None::<serde_json::Value>,
+            )
+        })?;
+
+        let related_cfg = self.config.tables.get(&rel.table).ok_or_else(|| {
+            McpError::internal_error(
+                format!("Related table '{}' not found in config", rel.table),
+                None::<serde_json::Value>,
+            )
+        })?;
+        let related_col_names: Vec<String> = related_cfg.columns.iter().map(|c| c.name.clone()).collect();
+        let rel_pk = table_cfg.primary_key.first().ok_or_else(|| {
+            McpError::internal_error(
+                format!("Table '{}' has no primary key defined", table_name),
+                None::<serde_json::Value>,
+            )
+        })?;
+
+        let mut sub_params: Vec<String> = Vec::new();
+        let mut sub_where = String::new();
+        if let Some(ref filters) = args.filters {
+            if let Some(obj) = filters.as_object() {
+                let mut clauses = Vec::new();
+                build_filter_clauses(obj, &related_col_names, &mut clauses, &mut sub_params);
+                if !clauses.is_empty() {
+                    sub_where = format!(" WHERE {}", clauses.join(" AND "));
+                }
+            }
+        }
+
+        let identity = self.identity();
+        let related_row_filters = related_cfg.row_filters.clone();
+        let mut rel_sql = format!(
+            "SELECT {} FROM {}",
+            rel.foreign_field, rel.table
+        );
+        rel_sql.push_str(&sub_where);
+        apply_row_filters(&mut rel_sql, &mut sub_params, &identity, &related_row_filters);
+
+        let limit = args.limit.unwrap_or(50).min(1000);
+        let offset = args.offset.unwrap_or(0);
+
+        let row_filters = table_cfg.row_filters.clone();
+        let mut sql = format!(
+            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} IN ({}",
+            table_cfg.table, rel_pk, rel_sql,
+        );
+        let mut params: Vec<String> = sub_params;
+
+        sql.push_str(")");
+        apply_row_filters(&mut sql, &mut params, &identity, &row_filters);
+        sql.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
+        sql.push_str(") t");
+
+        let rows = db::fetch_many(&self.app_context.pool, &sql, &params)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    format!("Query by related failed: {:?}", e),
+                    None::<serde_json::Value>,
+                )
+            })?;
+
+        let result = serde_json::json!({
+            "table": table_name,
+            "related": args.related,
+            "count": rows.len(),
+            "rows": rows,
+        });
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&result)
+                .map_err(|e| McpError::internal_error(
+                    format!("Failed to serialize response: {}", e),
+                    None::<serde_json::Value>,
+                ))?
+        )]))
+    }
 }
 
 impl ServerHandler for MorphisMCPServer {
@@ -572,6 +669,21 @@ pub struct SearchArgs {
     /// Maximum number of results (default: 50, max: 1000)
     pub limit: Option<i32>,
     /// Number of results to skip (default: 0)
+    pub offset: Option<i32>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct QueryByRelatedArgs {
+    /// Name of the parent table to query (e.g. "materials")
+    pub table: String,
+    /// Name of the relation to join through (e.g. "material_features" for "materials with feature X")
+    pub related: String,
+    /// Optional filters on the related table as key-value pairs.
+    /// Supports operators: __gt, __gte, __lt, __lte, __ne, __contains, __startswith, __endswith
+    pub filters: Option<serde_json::Value>,
+    /// Maximum number of parent records (default: 50, max: 1000)
+    pub limit: Option<i32>,
+    /// Number of records to skip (default: 0)
     pub offset: Option<i32>,
 }
 

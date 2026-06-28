@@ -14,8 +14,20 @@ mcp:
   server_name: morphis-mcp
   server_description: "MCP server for morphis: query, search, and explore your database tables"
   prompts:
-    system: "You are a database assistant for morphis. Use tools to discover tables, query filtered records, get single records by primary key, and search across indexed tables."
-    query_guidance: "When querying tables, you can filter with operators like __gt, __gte, __lt, __lte, __ne, __contains, __startswith, __endswith. Combine conditions with OR. Use discover_tables to see available tables and their schemas."
+    system: "You are a database assistant for a manufacturing company.
+      Use discover_tables first to learn the schema. Prefer query for exact matches
+      with filters (supports __gt, __gte, __lt, __lte, __ne, __contains, __startswith,
+      __endswith operators and OR conditions). Use query_by_related when you need
+      to find records based on a related table's values (e.g. 'materials with feature X').
+      Use get for single-record lookup by primary key.
+      Use search for full-text fuzzy matching across indexed fields.
+      MATERIALS is the central table — most queries start here."
+    query_guidance: "MATERIALS is the main product catalog table. Join through
+      material_features for characteristics, sizes for size variants, colorways for
+      color variants. For 'find materials by feature', use query_by_related with
+      related='material_features'. For 'find materials by size code', use
+      query_by_related with related='sizes'. Search index supports cross-field
+      full-text on mat_no, name, status, and nested features/attributes."
   auth:
     enabled: false
 
@@ -23,18 +35,35 @@ tables:
   materials:
     table: materials
     primary_key: [mat_no]
+    prompt: "Product catalog of raw materials used in manufacturing. Central table — most queries start here."
+    common_queries:
+      - description: "Find materials by feature name"
+        tool: query_by_related
+        params: { table: "materials", related: "material_features" }
+      - description: "Search materials by name or status"
+        tool: search
+        params: { index: "materials_search" }
+      - description: "Get materials with their sizes"
+        tool: query
+        params: { table: "materials" }
     columns:
       - name: mat_no
         type: string
         nullable: false
         unique: true
+        prompt: "Unique material identifier (e.g. M001, M002)"
+        examples: ["M001", "M002"]
       - name: name
         type: string
         nullable: false
+        prompt: "Display name of the material"
+        examples: ["Premium Cotton Canvas", "Merino Wool Blend"]
       - name: status
         type: string
         nullable: false
         default: "'active'"
+        prompt: "Lifecycle status of the material"
+        examples: ["active", "discontinued"]
       - name: tenant_id
         type: string
         nullable: true
@@ -68,6 +97,11 @@ tables:
   sizes:
     table: sizes
     primary_key: [id]
+    prompt: "Size variants for materials (e.g. small, medium, large, numeric sizes)"
+    common_queries:
+      - description: "Find sizes by material code"
+        tool: query
+        params: { table: "sizes" }
     columns:
       - name: id
         type: int
@@ -77,12 +111,17 @@ tables:
       - name: size_code
         type: string
         nullable: false
+        prompt: "Size identifier code"
+        examples: ["S", "M", "L", "XL", "40", "42"]
       - name: mat_no
         type: string
         nullable: false
+        prompt: "References the parent material"
       - name: name
         type: string
         nullable: false
+        prompt: "Human-readable size name"
+        examples: ["Small", "Medium", "Large"]
     relations:
       - name: material
         type: belongs_to
@@ -93,6 +132,7 @@ tables:
   colorways:
     table: colorways
     primary_key: [id]
+    prompt: "Color variants for materials with hex codes"
     columns:
       - name: id
         type: int
@@ -102,15 +142,22 @@ tables:
       - name: colorway_code
         type: string
         nullable: false
+        prompt: "Color identifier code"
+        examples: ["CW001", "CW002"]
       - name: mat_no
         type: string
         nullable: false
+        prompt: "References the parent material"
       - name: name
         type: string
         nullable: false
+        prompt: "Color name"
+        examples: ["Navy Blue", "Charcoal Gray", "Ivory White"]
       - name: hex
         type: string
         nullable: true
+        prompt: "Hex color code"
+        examples: ["#000080", "#36454F", "#FFFFF0"]
     relations:
       - name: material
         type: belongs_to
@@ -121,6 +168,11 @@ tables:
   material_features:
     table: material_features
     primary_key: [id]
+    prompt: "Characteristics and attributes of materials. Use this to find materials with specific features."
+    common_queries:
+      - description: "Find features by material code"
+        tool: query
+        params: { table: "material_features" }
     columns:
       - name: id
         type: int
@@ -130,12 +182,16 @@ tables:
       - name: mat_no
         type: string
         nullable: false
+        prompt: "References the parent material"
       - name: feature_name
         type: string
         nullable: false
+        prompt: "Name of the material characteristic"
+        examples: ["Water Resistant", "Eco", "Flame Retardant", "UV Resistant"]
       - name: description
         type: string
         nullable: true
+        prompt: "Detailed description of the feature"
     relations:
       - name: material
         type: belongs_to
@@ -151,6 +207,7 @@ tables:
   feature_attributes:
     table: feature_attributes
     primary_key: [id]
+    prompt: "Key-value attributes attached to material features (e.g. weight, thickness, certification)"
     columns:
       - name: id
         type: int
@@ -160,12 +217,17 @@ tables:
       - name: feature_id
         type: int
         nullable: false
+        prompt: "References the parent material_feature"
       - name: attr_name
         type: string
         nullable: false
+        prompt: "Attribute key"
+        examples: ["weight", "thickness", "certification", "treatment"]
       - name: attr_value
         type: string
         nullable: false
+        prompt: "Attribute value"
+        examples: ["200gsm", "1.5mm", "OEKO-TEX", "DWR coating"]
     relations:
       - name: material_feature
         type: belongs_to
