@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f5f5f0;
+  --foreground: #171717;
+  --brand: #0d9488;
+  --brand-light: #14b8a6;
+  --brand-dark: #0f766e;
+  --brand-bg: #f0fdfa;
+
+  --surface: #ffffff;
+  --muted: #f4f4f5;
+  --hover: #e4e4e7;
+  --border: #e4e4e7;
+  --border-light: #f4f4f5;
+  --text: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05);
+  --skeleton-from: #e4e4e7;
+  --skeleton-to: #f4f4f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #18181b;
+    --foreground: #f4f4f5;
+    --brand: #14b8a6;
+    --brand-light: #2dd4bf;
+    --brand-dark: #0d9488;
+    --brand-bg: #042f2e;
+
+    --surface: #27272a;
+    --muted: #3f3f46;
+    --hover: #52525b;
+    --border: #3f3f46;
+    --border-light: #27272a;
+    --text: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --skeleton-from: #3f3f46;
+    --skeleton-to: #52525b;
+  }
+}
+
+.dark {
+  --background: #18181b;
+  --foreground: #f4f4f5;
+  --brand: #14b8a6;
+  --brand-light: #2dd4bf;
+  --brand-dark: #0d9488;
+  --brand-bg: #042f2e;
+
+  --surface: #27272a;
+  --muted: #3f3f46;
+  --hover: #52525b;
+  --border: #3f3f46;
+  --border-light: #27272a;
+  --text: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --skeleton-from: #3f3f46;
+  --skeleton-to: #52525b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-bg: var(--brand-bg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+*, *::before, *::after {
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}

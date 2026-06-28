@@ -1,0 +1,317 @@
+database:
+  url: "postgres://postgres:postgres@localhost:5432/morphis"
+  max_connections: 10
+
+elasticsearch:
+  url: "http://localhost:9200"
+
+server:
+  host: "0.0.0.0"
+  port: 4000
+
+mcp:
+  enabled: true
+  server_name: morphis-mcp
+  server_description: "MCP server for morphis: query, search, and explore your database tables"
+  prompts:
+    system: "You are a database assistant for a manufacturing company.
+      Always start with discover_tables to learn the schema, then graphql_schema
+      to learn the GraphQL query syntax. PREFER graphql over row-level tools
+      (query, get, query_by_related, search) — it can fetch a parent record
+      with all nested relations (sizes, colorways, features, attributes) in a
+      single call. Only fall back to query/get/query_by_related/search when
+      graphql cannot express the specific filter you need.
+      MATERIALS is the central table — most queries start here."
+    query_guidance: "PREFERRED PATH: discover_tables → graphql_schema → graphql.
+      Always start with discover_tables to learn available tables and relations.
+      Then call graphql_schema to learn exact query names (e.g. materialsList,
+      material_featuresList), filter arguments, return types, and nested fields.
+      Use graphql as your primary tool. For queries that filter on a related
+      table's field (e.g. 'materials with feature X'), query from the related
+      table side and nest the parent:
+        material_featuresList(filter: {feature_name: \"Water Resistant\"}) {
+          mat_no feature_name description
+          material { mat_no name status sizes { size_code name } colorways { code hex } }
+        }
+      The relation resolvers (material, sizes, colorways, feature_attributes)
+      are available as nested fields on the return type.
+      Fall back to query/get/query_by_related/search only when graphql cannot
+      express the filter you need."
+  auth:
+    enabled: false
+
+tables:
+  materials:
+    table: materials
+    primary_key: [mat_no]
+    prompt: "Product catalog of raw materials used in manufacturing. Central table — most queries start here."
+    common_queries:
+      - description: "Find materials by feature name"
+        tool: query_by_related
+        params: { table: "materials", related: "material_features" }
+      - description: "Search materials by name or status"
+        tool: search
+        params: { index: "materials_search" }
+      - description: "Get materials with their sizes"
+        tool: query
+        params: { table: "materials" }
+    columns:
+      - name: mat_no
+        type: string
+        nullable: false
+        unique: true
+        prompt: "Unique material identifier (e.g. M001, M002)"
+        examples: ["M001", "M002"]
+      - name: name
+        type: string
+        nullable: false
+        prompt: "Display name of the material"
+        examples: ["Premium Cotton Canvas", "Merino Wool Blend"]
+      - name: status
+        type: string
+        nullable: false
+        default: "'active'"
+        prompt: "Lifecycle status of the material"
+        examples: ["active", "discontinued"]
+      - name: tenant_id
+        type: string
+        nullable: true
+    row_filters:
+      - column: tenant_id
+        from_header: X-Tenant-ID
+        auto_set: true
+      - type: subquery
+        from_header: X-User-ID
+        columns: [tenant_id]
+        match_columns: [tenant_id]
+        from_source: materials
+        user_column: tenant_id
+    relations:
+      - name: sizes
+        type: has_many
+        table: sizes
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: colorways
+        type: has_many
+        table: colorways
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: material_features
+        type: has_many
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
+
+  sizes:
+    table: sizes
+    primary_key: [id]
+    prompt: "Size variants for materials (e.g. small, medium, large, numeric sizes)"
+    common_queries:
+      - description: "Find sizes by material code"
+        tool: query
+        params: { table: "sizes" }
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: size_code
+        type: string
+        nullable: false
+        prompt: "Size identifier code"
+        examples: ["S", "M", "L", "XL", "40", "42"]
+      - name: mat_no
+        type: string
+        nullable: false
+        prompt: "References the parent material"
+      - name: name
+        type: string
+        nullable: false
+        prompt: "Human-readable size name"
+        examples: ["Small", "Medium", "Large"]
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+
+  colorways:
+    table: colorways
+    primary_key: [id]
+    prompt: "Color variants for materials with hex codes"
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: colorway_code
+        type: string
+        nullable: false
+        prompt: "Color identifier code"
+        examples: ["CW001", "CW002"]
+      - name: mat_no
+        type: string
+        nullable: false
+        prompt: "References the parent material"
+      - name: name
+        type: string
+        nullable: false
+        prompt: "Color name"
+        examples: ["Navy Blue", "Charcoal Gray", "Ivory White"]
+      - name: hex
+        type: string
+        nullable: true
+        prompt: "Hex color code"
+        examples: ["#000080", "#36454F", "#FFFFF0"]
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+
+  material_features:
+    table: material_features
+    primary_key: [id]
+    prompt: "Characteristics and attributes of materials. Use this to find materials with specific features."
+    common_queries:
+      - description: "Find features by material code"
+        tool: query
+        params: { table: "material_features" }
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: mat_no
+        type: string
+        nullable: false
+        prompt: "References the parent material"
+      - name: feature_name
+        type: string
+        nullable: false
+        prompt: "Name of the material characteristic"
+        examples: ["Water Resistant", "Eco", "Flame Retardant", "UV Resistant"]
+      - name: description
+        type: string
+        nullable: true
+        prompt: "Detailed description of the feature"
+    relations:
+      - name: material
+        type: belongs_to
+        table: materials
+        local_field: mat_no
+        foreign_field: mat_no
+      - name: feature_attributes
+        type: has_many
+        table: feature_attributes
+        local_field: id
+        foreign_field: feature_id
+
+  feature_attributes:
+    table: feature_attributes
+    primary_key: [id]
+    prompt: "Key-value attributes attached to material features (e.g. weight, thickness, certification)"
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: feature_id
+        type: int
+        nullable: false
+        prompt: "References the parent material_feature"
+      - name: attr_name
+        type: string
+        nullable: false
+        prompt: "Attribute key"
+        examples: ["weight", "thickness", "certification", "treatment"]
+      - name: attr_value
+        type: string
+        nullable: false
+        prompt: "Attribute value"
+        examples: ["200gsm", "1.5mm", "OEKO-TEX", "DWR coating"]
+    relations:
+      - name: material_feature
+        type: belongs_to
+        table: material_features
+        local_field: feature_id
+        foreign_field: id
+
+  user_permissions:
+    table: user_permissions
+    primary_key: [id]
+    columns:
+      - name: id
+        type: int
+        nullable: false
+        unique: true
+        auto_increment: true
+      - name: user_id
+        type: string
+        nullable: false
+      - name: tenant_id
+        type: string
+        nullable: false
+      - name: region
+        type: string
+        nullable: false
+
+  protected_data:
+    table: protected_data
+    primary_key: [id]
+    columns:
+      - name: id
+        type: string
+        nullable: false
+        unique: true
+      - name: name
+        type: string
+        nullable: false
+      - name: value
+        type: string
+        nullable: true
+      - name: region
+        type: string
+        nullable: true
+    row_filters:
+      - type: subquery
+        from_header: X-User-ID
+        columns: [region]
+        match_columns: [region]
+        from_source: user_permissions
+        user_column: user_id
+        cache_ttl_secs: 30
+
+search_indexes:
+  - name: materials_search
+    index: materials
+    type: materials
+    searchable_fields:
+      - mat_no
+      - name
+      - status
+    join_fields:
+      - name: features
+        index_field: material_features
+        table: material_features
+        local_field: mat_no
+        foreign_field: mat_no
+        searchable_fields:
+          - feature_name
+          - description
+        join_fields:
+          - name: attributes
+            index_field: feature_attributes
+            table: feature_attributes
+            local_field: id
+            foreign_field: feature_id
+            searchable_fields:
+              - attr_name
+              - attr_value

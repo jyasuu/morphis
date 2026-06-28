@@ -1,0 +1,18 @@
+[package]
+name = "auth-proxy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pingora = { version = "0.8", features = ["proxy"] }
+jsonwebtoken = "9"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+async-trait = "0.1"
+http = "1"
+ureq = { version = "3", features = ["json"] }

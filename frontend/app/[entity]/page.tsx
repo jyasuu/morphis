@@ -1,0 +1,330 @@
+"use client";
+
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useQuery, useMutation, useClient } from "urql";
+import { useParams, useRouter } from "next/navigation";
+import type { EntityInfo } from "@/lib/types";
+import { getEntity, getEntityNames } from "@/lib/schema";
+import {
+  buildListQuery,
+  buildDeleteMutation,
+  buildSearchQuery,
+  pkId,
+} from "@/lib/query-builder";
+import { DynamicTable } from "@/components/dynamic-table";
+import { SearchBar } from "@/components/search-bar";
+import { Card } from "@/components/card";
+import { getFilterComponent } from "@/components/filters/registry";
+import { getRelationFilters, getFilterComponentName, getPermissions } from "@/lib/metadata";
+import { showToast } from "@/components/toast";
+import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/skeleton";
+import { Icon } from "@/components/icon";
+import { useConfirm } from "@/components/confirm-dialog";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useT } from "@/lib/i18n";
+
+function intersectByPk<T>(arrays: T[][], pk: string): T[] {
+  if (arrays.length === 0) return [];
+  const counts = new Map<string, { record: T; count: number }>();
+  for (const arr of arrays) {
+    const seen = new Set<string>();
+    for (const r of arr) {
+      const key = String((r as any)[pk]);
+      if (!seen.has(key)) {
+        seen.add(key);
+        const entry = counts.get(key) || { record: r, count: 0 };
+        entry.count++;
+        counts.set(key, entry);
+      }
+    }
+  }
+  return [...counts.values()]
+    .filter((e) => e.count === arrays.length)
+    .map((e) => e.record);
+}
+
+function EntityListContent({
+  entity,
+  entityName,
+}: {
+  entity: EntityInfo;
+  entityName: string;
+}) {
+  const router = useRouter();
+  const t = useT();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [advFilter, setAdvFilter] = useState<{
+    query: string;
+    filter: Record<string, string>;
+    logic?: "and" | "or";
+    terms?: string[];
+  }>({ query: "", filter: {} });
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>();
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | undefined>();
+  const [andedData, setAndedData] = useState<any[] | null>(null);
+  const [andedLoading, setAndedLoading] = useState(false);
+  const client = useClient();
+  const confirm = useConfirm();
+
+  const relFilters = getRelationFilters(entityName);
+  const FilterComponent = getFilterComponent(
+    getFilterComponentName(entityName)
+  );
+  const activeSearchQuery = advFilter.query || searchQuery;
+  const activeFilter = advFilter.filter;
+  const hasActiveFilter = Object.values(activeFilter).some(Boolean);
+  const isSearching =
+    entity.hasSearch &&
+    (activeSearchQuery.length > 0 || hasActiveFilter);
+  const isAndSearch = isSearching && advFilter.logic === "and" && (advFilter.terms?.length ?? 0) > 1;
+
+  const listQuery = isAndSearch
+    ? null
+    : isSearching
+      ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
+      : buildListQuery(entity, { limit: pageSize, sortField, sortDir });
+  const listVars = isAndSearch
+    ? {}
+    : isSearching
+      ? entity.searchFilterFields?.length
+        ? { query: activeSearchQuery, filter: activeFilter }
+        : { query: activeSearchQuery }
+      : { limit: pageSize, offset: page * pageSize, ...(sortField ? { order_by: `${sortDir === "desc" ? "-" : ""}${sortField}` } : {}) };
+
+  const [result, reexecute] = useQuery({
+    query: listQuery ?? "query _ { __typename }",
+    variables: listVars as any,
+    pause: listQuery === null,
+  });
+
+  const [, deleteMut] = useMutation(buildDeleteMutation(entity));
+
+  // Perform AND multi-search with client-side intersection
+  const searchQueryStr = useMemo(
+    () =>
+      entity.hasSearch
+        ? buildSearchQuery(entity, !!entity.searchFilterFields?.length)
+        : "",
+    [entity]
+  );
+  const prevAndKey = useRef("");
+  useEffect(() => {
+    if (!isAndSearch || !searchQueryStr) {
+      setAndedData(null);
+      setAndedLoading(false);
+      return;
+    }
+    const terms = advFilter.terms ?? [];
+    const andKey = terms.sort().join(",") + "|" + JSON.stringify(activeFilter);
+    if (andKey === prevAndKey.current) return;
+    prevAndKey.current = andKey;
+
+    setAndedLoading(true);
+    const queries = terms.map((term) =>
+      client
+        .query(
+          searchQueryStr,
+          entity.searchFilterFields?.length
+            ? { query: term, filter: activeFilter }
+            : { query: term }
+        )
+        .toPromise()
+    );
+    Promise.all(queries)
+      .then((responses) => {
+        const key = `search${entityName.charAt(0).toUpperCase() + entityName.slice(1)}`;
+        const results = responses.map(
+          (r) => (r.data as any)?.[key] || []
+        );
+        const intersected = intersectByPk(results, entity.primaryKey);
+        setAndedData(intersected);
+        setAndedLoading(false);
+      })
+      .catch(() => setAndedLoading(false));
+  }, [isAndSearch, advFilter, entity, client, searchQueryStr, entityName, activeFilter]);
+
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, advFilter]);
+
+  const data = useMemo(() => {
+    if (isAndSearch) return andedData ?? [];
+    if (!result.data) return [];
+    if (isSearching) {
+      const key = `search${entityName.charAt(0).toUpperCase() + entityName.slice(1)}`;
+      return (result.data as any)?.[key] || [];
+    }
+    return (result.data as any)?.[`${entityName}List`] || [];
+  }, [result.data, isSearching, isAndSearch, andedData, entityName]);
+
+  const pkValue = useCallback(
+    (record: Record<string, unknown>): string => {
+      return String(record[entity.primaryKey] ?? "");
+    },
+    [entity]
+  );
+
+  async function handleDelete(pk: string) {
+    const ok = await confirm.confirm(t("confirm.defaultTitle"), t("confirm.defaultMessage"));
+    if (!ok) return;
+    const res = await deleteMut({ id: pkId(entity, pk) });
+    if (res.error) {
+      showToast(t("toast.deleteFailed", { msg: res.error.message }), "error");
+    } else {
+      showToast(t("toast.deleteSuccess"));
+    }
+  }
+
+  function handleSort(field: string) {
+    setSortField(field);
+    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    setPage(0);
+  }
+
+  const perms = getPermissions(entityName);
+  const effectivePerms = {
+    create: perms.create && entity.capabilities.create,
+    update: perms.update && entity.capabilities.update,
+    delete: perms.delete && entity.capabilities.delete,
+    list: perms.list && entity.capabilities.list,
+    read: perms.read && entity.capabilities.detail,
+  };
+  const hasMore = data.length >= pageSize;
+
+  return (
+    <div>
+      <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entity.name) }]} />
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">{t.entity(entity.name)}</h1>
+        {effectivePerms.create && (
+          <button
+            onClick={() => router.push(`/${entityName}/new`)}
+            className="bg-[#0d9488] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#0f766e]"
+          >
+            {t("list.new")}
+          </button>
+        )}
+      </div>
+
+      {entity.hasSearch && (
+        <div className="mb-4 space-y-3">
+          <SearchBar
+            onSearch={setSearchQuery}
+            placeholder={t("list.search", { name: t.entity(entity.name) })}
+          />
+          <FilterComponent
+            entityName={entityName}
+            filterFields={entity.searchFilterFields ?? []}
+            relationFilters={relFilters}
+            onFilterChange={(f) => {
+              setAdvFilter(f);
+              setPage(0);
+            }}
+          />
+        </div>
+      )}
+
+      <Card className="p-0 overflow-hidden">
+        <DynamicTable
+          entity={entity}
+          data={data}
+          pkValue={pkValue}
+          onSort={handleSort}
+          sortField={sortField}
+          sortDir={sortDir}
+          onRowClick={(pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`)
+          }
+          onView={(pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`)
+          }
+          onEdit={effectivePerms.update ? (pk) =>
+            router.push(`/${entityName}/${encodeURIComponent(pk)}`) : undefined}
+          onDelete={effectivePerms.delete ? handleDelete : undefined}
+          perm={{ update: effectivePerms.update, delete: effectivePerms.delete }}
+          loading={result.fetching || andedLoading}
+        />
+
+          {!isSearching && (
+          <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-[var(--border-light)]">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] disabled:opacity-30 hover:bg-[var(--muted)] hover:border-[var(--hover)] transition-colors"
+            >
+              <Icon name="chevron-left" className="w-4 h-4" /> {t("list.previous")}
+            </button>
+            <span className="inline-flex items-center justify-center min-w-[80px] px-3 py-1.5 text-sm font-medium text-[var(--text)] bg-[var(--muted)] rounded-lg">
+              {t("list.page", { n: page + 1 })}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore}
+              className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] disabled:opacity-30 hover:bg-[var(--muted)] hover:border-[var(--hover)] transition-colors"
+            >
+              {t("list.next")} <Icon name="chevron-right" className="w-4 h-4" />
+            </button>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+              className="px-2 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] outline-none focus:border-[#0d9488] cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        )}
+      </Card>
+      {confirm.dialog}
+    </div>
+  );
+}
+
+export default function EntityListPage() {
+  const params = useParams();
+  const entityName = params.entity as string;
+  const t = useT();
+
+  const [entity, setEntity] = useState<EntityInfo | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    getEntity(entityName).then((e) => {
+      if (e) {
+        setEntity(e);
+      } else {
+        getEntityNames().then((names) => {
+          if (names.length > 0 && !names.includes(entityName)) {
+            setNotFound(true);
+          }
+        });
+      }
+    });
+  }, [entityName]);
+
+  if (notFound) {
+    return (
+      <div>
+        <Breadcrumbs segments={[{ label: t("breadcrumbs.entities"), href: "/" }, { label: t.entity(entityName) }]} />
+        <EmptyState icon="search" title={t("detail.recordNotFound")} description={t("detail.recordNotFoundDesc", { entity: t.entity(entityName), id: "" })} />
+      </div>
+    );
+  }
+
+  if (!entity) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+
+  return <EntityListContent entity={entity} entityName={entityName} />;
+}

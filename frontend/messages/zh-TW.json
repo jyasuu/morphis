@@ -1,0 +1,116 @@
+{
+  "nav": {
+    "title": "Morphis Admin"
+  },
+  "home": {
+    "title": "資料實體",
+    "manage": "管理{name}"
+  },
+  "breadcrumbs": {
+    "entities": "資料實體",
+    "new": "新增"
+  },
+  "list": {
+    "new": "+ 新增",
+    "search": "搜尋{name}...",
+    "previous": "上一頁",
+    "next": "下一頁",
+    "page": "第{n}頁",
+    "noRecords": "找不到記錄",
+    "noRecordsHint": "請調整搜尋條件或篩選器"
+  },
+  "detail": {
+    "editRecord": "編輯記錄",
+    "related": "相關資料",
+    "recordNotFound": "找不到記錄",
+    "recordNotFoundDesc": "沒有「{entity}」的 ID 「{id}」"
+  },
+  "create": {
+    "title": "新增{name}",
+    "subtitle": "建立一筆新記錄",
+    "created": "建立成功"
+  },
+  "table": {
+    "actions": "操作",
+    "view": "檢視",
+    "edit": "編輯",
+    "delete": "刪除"
+  },
+  "form": {
+    "emptyOption": "--",
+    "selectOption": "-- 請選擇 --",
+    "saving": "儲存中...",
+    "create": "建立",
+    "update": "更新",
+    "submissionFailed": "提交失敗"
+  },
+  "searchFilter": {
+    "all": "全部"
+  },
+  "relationPanel": {
+    "new": "+ 新增",
+    "newTitle": "新增{name}",
+    "editTitle": "編輯{name}",
+    "deleteTitle": "刪除記錄",
+    "deleteMessage": "確定要刪除此記錄嗎？",
+    "created": "建立成功",
+    "updated": "更新成功",
+    "deleted": "刪除成功",
+    "deleteFailed": "刪除失敗：{msg}",
+    "updatedFailed": "更新失敗：{msg}",
+    "createdFailed": "建立失敗：{msg}"
+  },
+  "advancedFilter": {
+    "match": "符合",
+    "ofFollowing": "以下條件：",
+    "clearAll": "清除全部",
+    "equals": "=",
+    "contains": "包含",
+    "has": "包含",
+    "value": "值",
+    "addFilter": "+ 新增篩選"
+  },
+  "confirm": {
+    "confirm": "刪除",
+    "cancel": "取消",
+    "defaultTitle": "刪除記錄",
+    "defaultMessage": "確定要刪除此記錄嗎？"
+  },
+  "toast": {
+    "deleteSuccess": "刪除成功",
+    "deleteFailed": "刪除失敗：{msg}"
+  },
+  "theme": {
+    "switchToLight": "切換至淺色模式",
+    "switchToDark": "切換至深色模式"
+  },
+  "locale": {
+    "switchTo": "English"
+  },
+  "entity": {
+    "materials": "材料",
+    "colorways": "配色",
+    "feature_attributes": "特徵屬性",
+    "material_features": "材料特徵",
+    "sizes": "尺寸"
+  },
+  "field": {
+    "materials": {
+      "mat_no": "材料編號",
+      "name": "名稱",
+      "status": "狀態"
+    },
+    "colorways": {
+      "name": "名稱"
+    },
+    "feature_attributes": {
+      "name": "名稱"
+    },
+    "material_features": {
+      "name": "名稱"
+    },
+    "sizes": {
+      "name": "名稱"
+    }
+  }
+}

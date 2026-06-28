@@ -1,0 +1,86 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: morphis
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+
+  es:
+    image: elasticsearch:8.17.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  app:
+    image: morphis:local
+    ports:
+      - "4000:4000"
+    environment:
+      MORPHIS_CONFIG: /app/config.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+    volumes:
+      - ./config.docker.yaml:/app/config.yaml
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_URL: http://localhost:8080
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin >/dev/null 2>&1 && /opt/keycloak/bin/kcadm.sh get realms/morphis >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+
+  auth-proxy:
+    image: auth-proxy:local
+    ports:
+      - "9080:9080"
+    environment:
+      AUTH_PROXY_CONFIG: /app/config.yaml
+    depends_on:
+      app:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./auth-proxy/config.docker.yaml:/app/config.yaml
+
+  tests:
+    image: tests:local
+    depends_on:
+      app:
+        condition: service_started
+      es:
+        condition: service_healthy
+    profiles:
+      - tests

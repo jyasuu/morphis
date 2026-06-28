@@ -1,0 +1,53 @@
+{
+  "defaultFilterComponent": "advanced",
+  "defaultPermissions": {
+    "list": true,
+    "create": true,
+    "read": true,
+    "update": true,
+    "delete": true
+  },
+  "entityOverrides": {
+    "materials": {
+      "filterComponent": "advanced"
+    },
+    "user_permissions": {
+      "hidden": true
+    }
+  },
+  "controls": {
+    "materials": {
+      "status": {
+        "control": "select",
+        "options": [
+          { "label": "Active", "value": "active" },
+          { "label": "Discontinued", "value": "discontinued" }
+        ]
+      },
+      "tenant_id": {
+        "control": "text",
+        "hidden": true
+      }
+    },
+    "feature_attributes": {
+      "attr_value": {
+        "control": "select",
+        "options": [
+          { "label": "Yes", "value": "yes" },
+          { "label": "No", "value": "no" }
+        ]
+      }
+    }
+  },
+  "relationFilters": {
+    "materials": [
+      {
+        "label": "Has feature",
+        "relationEntity": "material_features",
+        "field": "feature_name",
+        "displayField": "feature_name",
+        "defaultLogic": "and"
+      }
+    ]
+  }
+}
