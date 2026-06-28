@@ -225,7 +225,7 @@ mcp:
   server_description: "MCP server for morphis"
   prompts:
     system: "You are a database assistant..."
-    query_guidance: "When querying tables, use __gt, __gte, ..."
+    query_guidance: "Use discover_tables to see available tables, then graphql_schema to learn query syntax, then graphql to execute queries."
   auth:
     enabled: false
 ```
@@ -234,29 +234,20 @@ mcp:
 
 | Tool | Description |
 |------|-------------|
-| `discover_tables` | List available tables, columns (type/prompt/examples), relations (has_many/belongs_to with field mappings), and common query patterns |
-| `query` | Filtered queries with operators (`__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`) and `OR` support |
-| `get` | Fetch a single record by primary key |
-| `search` | Full-text search via Elasticsearch |
-| `query_by_related` | Find parent records via a relation subquery (e.g. materials with a specific feature) |
-| `graphql` | Execute a GraphQL query to fetch nested related data in a single call (supports variables) |\n| `graphql_schema` | Introspect the GraphQL schema — returns all query names, filter arguments, return types, and available nested fields |
+| `discover_tables` | List available tables, columns (type/prompt/examples), relations (has_many/belongs_to with field mappings), and common query patterns. **Always call this first.** |
+| `graphql_schema` | Introspect the GraphQL schema — returns all query names, filter arguments, return types, and available nested fields. Call before `graphql` to learn the exact query syntax. |
+| `graphql` | Execute a raw GraphQL query against the built-in endpoint. Supports nested relations, filtering, ordering, pagination, and mutations. |
 
-The AI learns about tables, columns, and relations entirely through `discover_tables` — it returns explicit `relations[]` arrays (with type, table, field mappings) and `common_queries[]` examples showing which tool+params to use for common tasks. Combined with the system prompt instructions, the AI can map user intent to the correct tool without hardcoded knowledge.
+The AI workflow: `discover_tables` → learn table/column/relation names → `graphql_schema` → learn query names, filter args, and nested fields → `graphql` → execute queries. No row-level tools — everything goes through `graphql`.
 
-### Filter operators
-
-| Operator | SQL generated |
-|----------|--------------|
-| `field: "value"` | `field = 'value'` |
-| `field__gt: 10` | `field > 10` |
-| `field__gte: 10` | `field >= 10` |
-| `field__lt: 100` | `field < 100` |
-| `field__lte: 100` | `field <= 100` |
-| `field__ne: "value"` | `field != 'value'` |
-| `field__contains: "text"` | `field LIKE '%text%'` |
-| `field__startswith: "pre"` | `field LIKE 'pre%'` |
-| `field__endswith: "fix"` | `field LIKE '%fix'` |
-| `OR: [...]` | `(clause1) OR (clause2) OR ...` |
+For related-table filtering (e.g. "materials with Water Resistant feature"), query the child table and nest the parent:
+```graphql
+{ material_featuresList(filter: {feature_name: "Water Resistant"}) {
+    feature_name
+    material { mat_no name sizes { size_code } colorways { hex } }
+  }
+}
+```
 
 ### Auth (optional)
 

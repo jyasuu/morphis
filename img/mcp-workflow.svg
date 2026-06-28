@@ -1,8 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 760" font-family="'SF Mono','JetBrains Mono','Cascadia Code','Consolas',monospace" font-size="13">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 820" font-family="'SF Mono','JetBrains Mono','Cascadia Code','Consolas',monospace" font-size="13">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f8fafc"/>
       <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="box1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#334155"/>
     </linearGradient>
     <linearGradient id="llm" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#fdf4ff"/>
@@ -12,107 +16,93 @@
       <stop offset="0%" stop-color="#eff6ff"/>
       <stop offset="100%" stop-color="#dbeafe"/>
     </linearGradient>
-    <linearGradient id="response" x1="0" y1="0" x2="1" y2="0">
+    <linearGradient id="green-box" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#ecfdf5"/>
       <stop offset="100%" stop-color="#d1fae5"/>
     </linearGradient>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
     </marker>
-    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7"/>
-    </marker>
     <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
     </marker>
   </defs>
 
-  <rect width="820" height="720" fill="url(#bg)" rx="12" ry="12"/>
-  <text x="410" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1e293b">How the AI learns about tables, columns, and relations</text>
+  <rect width="860" height="800" fill="url(#bg)" rx="12" ry="12"/>
+  <text x="430" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1e293b">MCP Tool Workflow: discover_tables → graphql_schema → graphql</text>
 
   <!-- ═══ STEP 1: System Instructions ═══ -->
-  <rect x="160" y="50" width="500" height="44" rx="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.5"/>
-  <text x="410" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">1. Server announces instructions via get_info() → InitializeResult.instructions</text>
-  <text x="410" y="84" text-anchor="middle" font-size="10" fill="#94a3b8">"Always start by calling discover_tables — it returns tables, columns, relations[], common_queries[]"</text>
+  <rect x="180" y="50" width="500" height="50" rx="8" fill="url(#box1)" stroke="#0f172a" stroke-width="1.5"/>
+  <text x="430" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">1. Server sends instructions via InitializeResult</text>
+  <text x="430" y="88" text-anchor="middle" font-size="10" fill="#94a3b8">"Call discover_tables first, then graphql_schema to learn query syntax, then graphql to fetch data"</text>
 
-  <line x1="410" y1="94" x2="410" y2="120" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="425" y="112" text-anchor="middle" font-size="9" fill="#6b7280">tells AI to call discover_tables</text>
+  <line x1="430" y1="100" x2="430" y2="125" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ═══ STEP 2: AI calls discover_tables ═══ -->
-  <rect x="40" y="130" width="740" height="40" rx="8" fill="url(#server)" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="410" y="148" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">2. AI calls discover_tables() — morphis MCP returns full schema with prompts</text>
-  <text x="410" y="163" text-anchor="middle" font-size="10" fill="#3b82f6">→ JSON with tables, columns (type/prompt/examples), relations, common_queries, search_indexes</text>
+  <!-- ═══ STEP 2: discover_tables ═══ -->
+  <rect x="60" y="135" width="740" height="40" rx="8" fill="url(#server)" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="430" y="153" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">2. AI calls discover_tables() → returns table schemas, relations, prompts, and query_guidance</text>
+  <text x="430" y="168" text-anchor="middle" font-size="10" fill="#3b82f6">tables + columns (type/prompt/examples) + relations[has_many, belongs_to] + common_queries</text>
 
-  <line x1="410" y1="170" x2="410" y2="195" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <line x1="430" y1="175" x2="430" y2="200" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
 
-  <!-- ═══ STEP 3: What the AI sees ═══ -->
-  <text x="410" y="212" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="2">WHAT discover_tables RETURNS (LLM sees this JSON)</text>
+  <!-- ═══ What discover_tables returns ═══ -->
+  <text x="430" y="218" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="2">discover_tables RETURNS (LLM sees this JSON)</text>
 
-  <!-- materials table -->
-  <rect x="40" y="224" width="360" height="215" rx="8" fill="url(#llm)" stroke="#d8b4fe" stroke-width="1.5"/>
-  <text x="58" y="244" font-size="12" font-weight="700" fill="#6b21a8">materials</text>
-  <text x="58" y="260" font-size="10" fill="#7e22ce">prompt: "Product catalog of raw materials…"</text>
+  <!-- materials box (existing) -->
+  <rect x="60" y="230" width="360" height="115" rx="8" fill="url(#llm)" stroke="#d8b4fe" stroke-width="1.5"/>
+  <text x="78" y="250" font-size="12" font-weight="700" fill="#6b21a8">materials</text>
+  <text x="78" y="268" font-size="10" fill="#7e22ce">columns: mat_no (string, pk), name, status</text>
+  <text x="78" y="286" font-size="10" fill="#7e22ce">relations:</text>
+  <text x="78" y="302" font-size="9" fill="#6b21a8">  sizes:       has_many → sizes  (mat_no)</text>
+  <text x="78" y="317" font-size="9" fill="#6b21a8">  colorways:   has_many → colorways  (mat_no)</text>
+  <text x="78" y="332" font-size="9" fill="#6b21a8">  material_features: has_many → material_features (mat_no)</text>
 
-  <text x="58" y="280" font-size="10" font-weight="600" fill="#7e22ce">columns:</text>
-  <text x="58" y="295" font-size="9" fill="#6b21a8">  mat_no (string, pk, prompt: "Unique material identifier", examples: ["M001"])</text>
-  <text x="58" y="310" font-size="9" fill="#6b21a8">  name (string, prompt: "Display name", examples: ["Premium Cotton Canvas"])</text>
-  <text x="58" y="325" font-size="9" fill="#6b21a8">  status (string, prompt: "Lifecycle status", examples: ["active", "discontinued"])</text>
+  <!-- material_features box (existing) -->
+  <rect x="440" y="230" width="360" height="115" rx="8" fill="url(#llm)" stroke="#d8b4fe" stroke-width="1.5"/>
+  <text x="458" y="250" font-size="12" font-weight="700" fill="#6b21a8">material_features</text>
+  <text x="458" y="268" font-size="10" fill="#7e22ce">columns: id (int, pk), mat_no, feature_name, description</text>
+  <text x="458" y="308" font-size="10" fill="#7e22ce">relations:</text>
+  <text x="458" y="324" font-size="9" fill="#6b21a8">  material: belongs_to → materials (mat_no)</text>
 
-  <text x="58" y="348" font-size="10" font-weight="600" fill="#7e22ce">relations:</text>
-  <text x="58" y="363" font-size="9" fill="#6b21a8">  sizes:       has_many → sizes  (mat_no = mat_no)</text>
-  <text x="58" y="378" font-size="9" fill="#6b21a8">  colorways:   has_many → colorways  (mat_no = mat_no)</text>
-  <text x="58" y="393" font-size="9" fill="#6b21a8">  material_features: has_many → material_features (mat_no = mat_no)</text>
+  <!-- query_guidance reminder -->
+  <rect x="180" y="355" width="500" height="34" rx="6" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="430" y="370" text-anchor="middle" font-size="10" font-weight="600" fill="#92400e">query_guidance: "Use graphql_schema to learn exact query syntax before calling graphql"</text>
 
-  <text x="58" y="416" font-size="10" font-weight="600" fill="#7e22ce">common_queries:</text>
-  <text x="58" y="431" font-size="9" fill="#6b21a8">  "Find materials by feature name" → query_by_related(</text>
-  <text x="58" y="444" font-size="9" fill="#6b21a8">     {table: materials, related: material_features})</text>
+  <line x1="430" y1="389" x2="430" y2="414" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- material_features table -->
-  <rect x="420" y="224" width="360" height="152" rx="8" fill="url(#llm)" stroke="#d8b4fe" stroke-width="1.5"/>
-  <text x="438" y="244" font-size="12" font-weight="700" fill="#6b21a8">material_features</text>
-  <text x="438" y="260" font-size="10" fill="#7e22ce">prompt: "Characteristics and attributes of materials…"</text>
+  <!-- ═══ STEP 3: graphql_schema ═══ -->
+  <rect x="130" y="424" width="600" height="44" rx="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="430" y="444" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">3. AI calls graphql_schema() → learns query names, filter args, return types, nested fields</text>
+  <text x="430" y="460" text-anchor="middle" font-size="10" fill="#bfdbfe">materialsList(filter, order_by, limit, offset) → [materials!]  nested: sizes, colorways, material_features</text>
 
-  <text x="438" y="280" font-size="10" font-weight="600" fill="#7e22ce">columns:</text>
-  <text x="438" y="295" font-size="9" fill="#6b21a8">  id (int, pk)</text>
-  <text x="438" y="310" font-size="9" fill="#6b21a8">  mat_no (string, references materials)</text>
-  <text x="438" y="325" font-size="9" fill="#6b21a8">  feature_name (string, prompt: "Name of the characteristic",</text>
-  <text x="438" y="338" font-size="9" fill="#6b21a8">    examples: ["Water Resistant", "Eco", "Flame Retardant"])</text>
-  <text x="438" y="353" font-size="9" fill="#6b21a8">  description (string, nullable)</text>
+  <!-- graphql_schema result detail -->
+  <rect x="130" y="478" width="600" height="60" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="150" y="495" font-size="10" font-weight="700" fill="#1d4ed8">Introspecion result (abbreviated):</text>
+  <text x="150" y="511" font-size="9" fill="#2563eb">material_featuresList(filter: material_featuresFilter, order_by, limit, offset) → [material_features!]!</text>
+  <text x="150" y="527" font-size="9" fill="#2563eb">  nested_fields: ["material", "feature_attributes"]  → can nest material { mat_no name sizes colorways }</text>
 
-  <text x="438" y="373" font-size="10" font-weight="600" fill="#7e22ce">relations:</text>
-  <text x="438" y="388" font-size="9" fill="#6b21a8">  material: belongs_to → materials (mat_no = mat_no)</text>
+  <line x1="430" y1="538" x2="430" y2="563" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
 
-  <!-- Arrow: AI sees discover_tables → figures out tool -->
-  <line x1="220" y1="439" x2="220" y2="475" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
-  <line x1="220" y1="475" x2="410" y2="475" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
-  <text x="410" y="467" text-anchor="middle" font-size="9" fill="#a855f7">AI uses common_queries + relations to map intent → tool</text>
+  <!-- ═══ STEP 4: AI figures out the correct GraphQL query ═══ -->
+  <text x="430" y="578" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">AI combines discover_tables relations + graphql_schema query syntax</text>
+  <text x="430" y="593" text-anchor="middle" font-size="10" fill="#6b7280">"Water Resistant" → filter material_featuresList by feature_name, nest parent material inside</text>
 
-  <!-- ═══ STEP 4: AI calls the tool ═══ -->
-  <rect x="130" y="488" width="560" height="65" rx="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.5"/>
-  <text x="410" y="508" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">4. AI calls the tool based on discover_tables context</text>
-  <text x="410" y="526" text-anchor="middle" font-size="10" fill="#bfdbfe">User: "find materials with features Water Resistant"</text>
-  <text x="410" y="543" text-anchor="middle" font-size="10" fill="#93c5fd">↓  Maps to common_query pattern → picks query_by_related</text>
+  <line x1="430" y1="600" x2="430" y2="618" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <line x1="410" y1="553" x2="410" y2="575" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <!-- ═══ STEP 5: graphql call ═══ -->
+  <rect x="130" y="628" width="600" height="44" rx="8" fill="#059669" stroke="#047857" stroke-width="1.5"/>
+  <text x="430" y="648" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">4. AI calls graphql() with child-first query pattern</text>
+  <text x="430" y="664" text-anchor="middle" font-size="10" fill="#a7f3d0">material_featuresList(filter: {feature_name: "Water Resistant"}) { material { mat_no name sizes colorways } }</text>
 
-  <!-- Tool call detail -->
-  <rect x="130" y="585" width="560" height="44" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="150" y="604" font-size="10" font-weight="700" fill="#1d4ed8">Tool call generated:</text>
-  <text x="150" y="620" font-size="10" fill="#2563eb">query_by_related(table: "materials", related: "material_features", filters: {"feature_name": "Water Resistant"})</text>
-
-  <line x1="410" y1="629" x2="410" y2="648" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="430" y1="672" x2="430" y2="690" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- Result -->
-  <rect x="130" y="655" width="560" height="48" rx="8" fill="url(#response)" stroke="#a7f3d0" stroke-width="1.5"/>
-  <text x="410" y="674" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">5. morphis executes → returns results</text>
-  <text x="410" y="692" text-anchor="middle" font-size="10" fill="#047857">Found 2 materials: M001 (Premium Cotton Canvas), M002 (Merino Wool Blend)</text>
+  <rect x="130" y="700" width="600" height="48" rx="8" fill="url(#green-box)" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="430" y="720" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">5. morphis executes → returns nested results</text>
+  <text x="430" y="738" text-anchor="middle" font-size="10" fill="#047857">M001 (Premium Cotton Canvas) + DWR feature + S/M/L sizes + White/Black/Navy colors</text>
 
-  <line x1="690" y1="679" x2="750" y2="679" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <line x1="750" y1="679" x2="750" y2="710" stroke="#6b7280" stroke-width="1.5"/>
-
-  <!-- key insight callout -->
-  <rect x="130" y="710" width="560" height="36" rx="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
-  <text x="410" y="726" text-anchor="middle" font-size="10" font-weight="700" fill="#92400e">Key: The AI never knows about relations magically</text>
-  <text x="410" y="740" text-anchor="middle" font-size="10" fill="#b45309">It reads them from discover_tables JSON → relations[] + common_queries[].params</text>
-
+  <!-- Key insight callout -->
+  <rect x="130" y="762" width="600" height="36" rx="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="430" y="778" text-anchor="middle" font-size="10" font-weight="700" fill="#92400e">Key: No row-level tools — all data access goes through graphql; filter by related fields via child-first nesting</text>
+  <text x="430" y="792" text-anchor="middle" font-size="10" fill="#b45309">Discover → Introspect → Graphql — the three-tool workflow for all queries</text>
 </svg>
