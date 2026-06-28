@@ -163,7 +163,7 @@ Key files in `scripts/`:
 ### MCP Server (Streamable HTTP, same Axum process)
 - Route: `POST /mcp` on the same port (4000) — uses `rmcp` 1.8 with `#[tool]` / `#[tool_router]` macros
 - Tools:
-  - `discover_tables` — Lists available tables with columns (type/prompt/examples), relations (type + field mappings), search indexes, and common query patterns. Always call first.
+  - `discover_tables` — Lists available tables with columns (type/prompt/examples), relations (type + field mappings), search indexes, and common query patterns. Always call first. Pass `detail: true` to include full column types, prompts, and examples (default is lightweight with column names only).
   - `graphql` — Execute a raw GraphQL query against the built-in endpoint. Supports nested relations, filtering, ordering, pagination, and mutations. Preferred over row-level tools since it can fetch parent + all nested relations in one call.
   - `graphql_schema` — Introspect the GraphQL schema: query names, filter arguments, return types, nested fields. Call before `graphql` to learn exact query syntax.
 - Recommended workflow: `discover_tables` → `graphql_schema` → `graphql`

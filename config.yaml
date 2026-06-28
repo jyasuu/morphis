@@ -12,17 +12,15 @@ server:
 mcp:
   enabled: true
   server_name: morphis-mcp
-  server_description: "MCP server for morphis: query, search, and explore your database tables"
+  server_description: "MCP server for morphis: explore and query your database tables via GraphQL"
   prompts:
     system: "You are a database assistant for a manufacturing company.
       Always start with discover_tables to learn the schema, then graphql_schema
-      to learn the GraphQL query syntax. PREFER graphql over row-level tools
-      (query, get, query_by_related, search) — it can fetch a parent record
-      with all nested relations (sizes, colorways, features, attributes) in a
-      single call. Only fall back to query/get/query_by_related/search when
-      graphql cannot express the specific filter you need.
+      to learn the GraphQL query syntax. Use graphql to execute all queries —
+      it can fetch a parent record with all nested relations (sizes, colorways,
+      features, attributes) in a single call.
       MATERIALS is the central table — most queries start here."
-    query_guidance: "PREFERRED PATH: discover_tables → graphql_schema → graphql.
+    query_guidance: "WORKFLOW: discover_tables → graphql_schema → graphql.
       Always start with discover_tables to learn available tables and relations.
       Then call graphql_schema to learn exact query names (e.g. materialsList,
       material_featuresList), filter arguments, return types, and nested fields.
@@ -34,9 +32,7 @@ mcp:
           material { mat_no name status sizes { size_code name } colorways { code hex } }
         }
       The relation resolvers (material, sizes, colorways, feature_attributes)
-      are available as nested fields on the return type.
-      Fall back to query/get/query_by_related/search only when graphql cannot
-      express the filter you need."
+      are available as nested fields on the return type."
   auth:
     enabled: false
 
