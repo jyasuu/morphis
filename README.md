@@ -214,6 +214,8 @@ mutation { deleteLineItems(order_id: "ORD001", line_no: 1) { order_id line_no } 
 
 Morphis ships with a built-in [MCP](https://modelcontextprotocol.io) server using Streamable HTTP transport, available at `POST /mcp`.
 
+![MCP query_by_related workflow](img/mcp-workflow.svg)
+
 ### Configuration
 
 ```yaml
@@ -236,6 +238,7 @@ mcp:
 | `query` | Filtered queries with operators (`__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`) and `OR` support |
 | `get` | Fetch a single record by primary key |
 | `search` | Full-text search via Elasticsearch |
+| `query_by_related` | Find parent records via a relation subquery (e.g. materials with a specific feature) |
 
 ### Filter operators
 
