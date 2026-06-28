@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use axum::http::{header, HeaderValue, Request};
@@ -22,6 +23,9 @@ use crate::schema::Identity;
 tokio::task_local! {
     pub static MCP_IDENTITY: Identity;
 }
+
+/// Cache for `graphql_schema` results — schema is static for the server lifetime.
+static SCHEMA_CACHE: OnceLock<String> = OnceLock::new();
 
 // ── Shared state for auth middleware ────────────────────────────
 
@@ -218,7 +222,15 @@ impl MorphisMCPServer {
             "http://localhost:{}/graphql",
             self.config.server.port
         );
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| {
+                McpError::internal_error(
+                    format!("Failed to create HTTP client: {}", e),
+                    None::<serde_json::Value>,
+                )
+            })?;
         let mut body = serde_json::json!({ "query": args.query });
         if let Some(vars) = args.variables {
             body["variables"] = vars;
@@ -243,12 +255,19 @@ impl MorphisMCPServer {
             )
         })?;
 
-        let formatted = serde_json::from_str::<serde_json::Value>(&text)
-            .ok()
-            .and_then(|v| serde_json::to_string_pretty(&v).ok())
-            .unwrap_or(text);
-
-        Ok(CallToolResult::success(vec![Content::text(formatted)]))
+        // Surface GraphQL errors as tool errors so the LLM gets clear feedback
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(errors) = parsed.get("errors") {
+                return Err(McpError::internal_error(
+                    format!("GraphQL errors: {}", serde_json::to_string_pretty(errors).unwrap_or_default()),
+                    None::<serde_json::Value>,
+                ));
+            }
+            let formatted = serde_json::to_string_pretty(&parsed).unwrap_or(text);
+            Ok(CallToolResult::success(vec![Content::text(formatted)]))
+        } else {
+            Ok(CallToolResult::success(vec![Content::text(text)]))
+        }
     }
 
     /// Introspect the GraphQL schema and return every available query with its arguments, return type, and nested fields.
@@ -257,6 +276,11 @@ impl MorphisMCPServer {
     /// Example response for a query: { "query": "materialsList", "arguments": [ { "name": "filter", "type": "MaterialsFilterInput" }, ... ], "return_type": "[Materials!]!", "nested_fields": ["mat_no", "name", "sizes", ...] }
     #[tool(description = "Get the GraphQL schema: all query names, filter arguments, return types, and nested fields. Call this before graphql to learn the exact query syntax.")]
     async fn graphql_schema(&self) -> Result<CallToolResult, McpError> {
+        // Return cached result — schema is static at runtime
+        if let Some(cached) = SCHEMA_CACHE.get() {
+            return Ok(CallToolResult::success(vec![Content::text(cached.clone())]));
+        }
+
         let url = format!(
             "http://localhost:{}/graphql",
             self.config.server.port
@@ -367,13 +391,16 @@ impl MorphisMCPServer {
             "note": "Use these query names and arguments in the graphql tool. Nested fields can be included in the selection set.",
         });
 
-        Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&output)
-                .map_err(|e| McpError::internal_error(
-                    format!("Failed to format schema: {}", e),
-                    None::<serde_json::Value>,
-                ))?
-        )]))
+        let schema_json = serde_json::to_string_pretty(&output)
+            .map_err(|e| McpError::internal_error(
+                format!("Failed to format schema: {}", e),
+                None::<serde_json::Value>,
+            ))?;
+
+        // Cache for subsequent calls — schema is static at runtime
+        let _ = SCHEMA_CACHE.set(schema_json.clone());
+
+        Ok(CallToolResult::success(vec![Content::text(schema_json)]))
     }
 }
 
