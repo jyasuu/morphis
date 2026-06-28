@@ -234,11 +234,13 @@ mcp:
 
 | Tool | Description |
 |------|-------------|
-| `discover_tables` | List available tables, columns, types, prompts, and common queries |
+| `discover_tables` | List available tables, columns (type/prompt/examples), relations (has_many/belongs_to with field mappings), and common query patterns |
 | `query` | Filtered queries with operators (`__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`) and `OR` support |
 | `get` | Fetch a single record by primary key |
 | `search` | Full-text search via Elasticsearch |
 | `query_by_related` | Find parent records via a relation subquery (e.g. materials with a specific feature) |
+
+The AI learns about tables, columns, and relations entirely through `discover_tables` — it returns explicit `relations[]` arrays (with type, table, field mappings) and `common_queries[]` examples showing which tool+params to use for common tasks. Combined with the system prompt instructions, the AI can map user intent to the correct tool without hardcoded knowledge.
 
 ### Filter operators
 

@@ -78,12 +78,24 @@ impl MorphisMCPServer {
             .filter(|si| si.graphql_type == *table_name)
             .map(|si| si.name.clone())
             .collect();
+        let relations: Vec<RelationSchema> = cfg
+            .relations
+            .iter()
+            .map(|r| RelationSchema {
+                name: r.name.clone(),
+                rel_type: format!("{:?}", r.rel_type).to_lowercase(),
+                table: r.table.clone(),
+                local_field: r.local_field.clone(),
+                foreign_field: r.foreign_field.clone(),
+            })
+            .collect();
         Some(TableSchema {
             db_table: cfg.table.clone(),
             prompt: cfg.prompt.clone(),
             columns,
             search_indexes,
             common_queries: cfg.common_queries.clone(),
+            relations,
         })
     }
 
@@ -119,6 +131,22 @@ impl MorphisMCPServer {
                     "search_indexes".into(),
                     serde_json::json!(info.search_indexes),
                 );
+                let rels: Vec<serde_json::Value> = info
+                    .relations
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "name": r.name,
+                            "type": r.rel_type,
+                            "table": r.table,
+                            "local_field": r.local_field,
+                            "foreign_field": r.foreign_field,
+                        })
+                    })
+                    .collect();
+                if !rels.is_empty() {
+                    obj.insert("relations".into(), serde_json::Value::Array(rels));
+                }
                 let cqs: Vec<serde_json::Value> = info
                     .common_queries
                     .iter()
@@ -688,12 +716,22 @@ pub struct QueryByRelatedArgs {
 }
 
 #[derive(Debug, Clone)]
+struct RelationSchema {
+    name: String,
+    rel_type: String,
+    table: String,
+    local_field: String,
+    foreign_field: String,
+}
+
+#[derive(Debug, Clone)]
 struct TableSchema {
     db_table: String,
     prompt: Option<String>,
     columns: Vec<ColumnSchema>,
     search_indexes: Vec<String>,
     common_queries: Vec<crate::config::CommonQueryConfig>,
+    relations: Vec<RelationSchema>,
 }
 
 #[derive(Debug, Clone)]
