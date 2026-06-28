@@ -162,14 +162,14 @@ Key files in `scripts/`:
 
 ### MCP Server (Streamable HTTP, same Axum process)
 - Route: `POST /mcp` on the same port (4000) — uses `rmcp` 1.8 with `#[tool]` / `#[tool_router]` macros
-- Tools: `discover_tables`, `query`, `get`, `search`, `query_by_related` — parameterized (not per-table)
-  - `query_by_related`: Find parent records based on filters on a related table (e.g. "materials with feature X") using the relation name from config
-- Filter DSL via JSON args: `__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`, `OR`
-- Row-level security: `apply_row_filters` from `crate::schema` applies to all MCP queries (same as GraphQL)
+- Tools:
+  - `discover_tables` — Lists available tables with columns (type/prompt/examples), relations (type + field mappings), search indexes, and common query patterns. Always call first.
+  - `graphql` — Execute a raw GraphQL query against the built-in endpoint. Supports nested relations, filtering, ordering, pagination, and mutations. Preferred over row-level tools since it can fetch parent + all nested relations in one call.
+  - `graphql_schema` — Introspect the GraphQL schema: query names, filter arguments, return types, nested fields. Call before `graphql` to learn exact query syntax.
+- Recommended workflow: `discover_tables` → `graphql_schema` → `graphql`
 - Auth: Optional JWT (HS256 shared secret or JWKS RS256) via `jsonwebtoken` + async `reqwest::Client`; mapped to Identity through `tokio::task_local!`
 - Config-driven prompts per table (`prompt`, `common_queries` on `TableConfig`) and per column (`prompt`, `examples`)
 - `rmcp` 1.8 uses `#[non_exhaustive]` on `InitializeResult`, `ServerCapabilities`, `StreamableHttpServerConfig` — must use builders
-- ES helpers adapted from `schema/search.rs` for MCP search tool
 
 ### Key conventions
 - **GraphQL naming**: Table names use the config's `name:` field as-is. `user_permissions` → `user_permissionsList`, `createUser_permissions`, `deleteUser_permissions` (underscores preserved, no camelCase).
@@ -188,6 +188,7 @@ Key files in `scripts/`:
 | `tests/relations.hurl` | has_many, belongs_to, deep nesting |
 | `tests/search.hurl` | ES search queries |
 | `tests/row_filters.hurl` | Column RLS + subquery RLS + RBAC |
+| `tests/auth_proxy.hurl` | Keycloak JWT auth through auth-proxy |
 
 ### Test execution order (entrypoint manages side effects)
-health → mutations → **cleanup** → queries → relations → search → row_filters
+health → mutations → **cleanup** → queries → relations → search → row_filters → auth_proxy
