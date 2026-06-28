@@ -10,6 +10,8 @@ pub struct Config {
     pub elasticsearch: Option<ElasticsearchConfig>,
     #[serde(default)]
     pub search_indexes: Vec<SearchIndexConfig>,
+    #[serde(default)]
+    pub mcp: Option<MCPConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -43,6 +45,50 @@ pub struct SearchJoinConfig {
     #[serde(default)]
     pub join_fields: Vec<SearchJoinConfig>,
 }
+
+// ── MCP Configuration ──────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MCPConfig {
+    #[serde(default = "default_mcp_enabled")]
+    pub enabled: bool,
+    #[allow(dead_code)]
+    pub server_name: Option<String>,
+    #[allow(dead_code)]
+    pub server_description: Option<String>,
+    pub prompts: Option<MCPPromptsConfig>,
+    pub auth: Option<MCPAuthConfig>,
+}
+
+fn default_mcp_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MCPPromptsConfig {
+    pub system: Option<String>,
+    pub query_guidance: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MCPAuthConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub jwks_url: Option<String>,
+    pub issuer: Option<String>,
+    pub audience: Option<String>,
+    pub jwt_secret: Option<String>,
+    #[serde(default)]
+    pub identity_mappings: Vec<MCPIdentityMapping>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MCPIdentityMapping {
+    pub claim: String,
+    pub header: String,
+}
+
+// ── End MCP Configuration ──────────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
@@ -169,6 +215,17 @@ pub struct TableConfig {
     pub row_filters: Vec<RowFilterConfig>,
     #[serde(default)]
     pub crud: CrudConfig,
+    #[serde(default)]
+    pub prompt: Option<String>,
+    #[serde(default)]
+    pub common_queries: Vec<CommonQueryConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommonQueryConfig {
+    pub description: String,
+    pub tool: String,
+    pub params: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -206,6 +263,10 @@ pub struct ColumnConfig {
     #[serde(default)]
     #[allow(dead_code)]
     pub default: Option<String>,
+    #[serde(default)]
+    pub prompt: Option<String>,
+    #[serde(default)]
+    pub examples: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

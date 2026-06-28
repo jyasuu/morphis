@@ -9,6 +9,16 @@ server:
   host: "0.0.0.0"
   port: 4000
 
+mcp:
+  enabled: true
+  server_name: morphis-mcp
+  server_description: "MCP server for morphis: query, search, and explore your database tables"
+  prompts:
+    system: "You are a database assistant for morphis. Use tools to discover tables, query filtered records, get single records by primary key, and search across indexed tables."
+    query_guidance: "When querying tables, you can filter with operators like __gt, __gte, __lt, __lte, __ne, __contains, __startswith, __endswith. Combine conditions with OR. Use discover_tables to see available tables and their schemas."
+  auth:
+    enabled: false
+
 tables:
   materials:
     table: materials

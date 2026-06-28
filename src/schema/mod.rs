@@ -1,4 +1,4 @@
-mod db;
+pub(crate) mod db;
 mod input;
 mod mutation;
 mod query;

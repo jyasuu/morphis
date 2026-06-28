@@ -1,5 +1,6 @@
 mod config;
 mod db;
+mod mcp;
 mod schema;
 
 use std::sync::Arc;
@@ -26,14 +27,19 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = db::connect(&config.database).await?;
 
-    let schema = schema::build_schema(config.clone(), pool).await;
+    let schema = schema::build_schema(config.clone(), pool.clone()).await;
 
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/graphql", get(graphql_handler).post(graphql_handler))
         .route("/playground", get(graphql_playground))
         .route("/health", get(health))
         .layer(CorsLayer::permissive())
         .layer(Extension(schema));
+
+    // Mount MCP sub-router if enabled
+    if let Some(mcp_router) = mcp::build_mcp_router(config.clone(), pool.clone()) {
+        app = app.merge(mcp_router);
+    }
 
     let addr = format!("{}:{}", config.server.host, config.server.port);
     tracing::info!("Morphis server starting on {}", addr);

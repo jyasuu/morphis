@@ -160,6 +160,16 @@ Key files in `scripts/`:
 - **Keycloak hostname** — Set `KC_HOSTNAME_URL=http://localhost:8080` on Keycloak so OIDC discovery returns `localhost` URLs the browser can reach. Set auth-proxy `jwt_issuer: ""` to skip issuer validation when hostname differs between internal/external access.
 - **Playwright needs system deps** — `apt-get install -y libnspr4 libnss3 libgbm1 libasound2` for headless Chromium.
 
+### MCP Server (Streamable HTTP, same Axum process)
+- Route: `POST /mcp` on the same port (4000) — uses `rmcp` 1.8 with `#[tool]` / `#[tool_router]` macros
+- Tools: `discover_tables`, `query`, `get`, `search` — parameterized (not per-table)
+- Filter DSL via JSON args: `__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`, `OR`
+- Row-level security: `apply_row_filters` from `crate::schema` applies to all MCP queries (same as GraphQL)
+- Auth: Optional JWT (HS256 shared secret or JWKS RS256) via `jsonwebtoken` + `reqwest::blocking`; mapped to Identity through `tokio::task_local!`
+- Config-driven prompts per table (`prompt`, `common_queries` on `TableConfig`) and per column (`prompt`, `examples`)
+- `rmcp` 1.8 uses `#[non_exhaustive]` on `InitializeResult`, `ServerCapabilities`, `StreamableHttpServerConfig` — must use builders
+- ES helpers adapted from `schema/search.rs` for MCP search tool
+
 ### Key conventions
 - **GraphQL naming**: Table names use the config's `name:` field as-is. `user_permissions` → `user_permissionsList`, `createUser_permissions`, `deleteUser_permissions` (underscores preserved, no camelCase).
 - **has_many ORDER**: Always `ORDER BY t.<primary_key>` inside `json_agg` — needed for deterministic results.

@@ -210,6 +210,84 @@ mutation { updateLineItems(order_id: "ORD001", line_no: 1, input: { quantity: 5 
 mutation { deleteLineItems(order_id: "ORD001", line_no: 1) { order_id line_no } }
 ```
 
+## MCP Server (Streamable HTTP)
+
+Morphis ships with a built-in [MCP](https://modelcontextprotocol.io) server using Streamable HTTP transport, available at `POST /mcp`.
+
+### Configuration
+
+```yaml
+mcp:
+  enabled: true
+  server_name: morphis-mcp
+  server_description: "MCP server for morphis"
+  prompts:
+    system: "You are a database assistant..."
+    query_guidance: "When querying tables, use __gt, __gte, ..."
+  auth:
+    enabled: false
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `discover_tables` | List available tables, columns, types, prompts, and common queries |
+| `query` | Filtered queries with operators (`__gt`, `__gte`, `__lt`, `__lte`, `__ne`, `__contains`, `__startswith`, `__endswith`) and `OR` support |
+| `get` | Fetch a single record by primary key |
+| `search` | Full-text search via Elasticsearch |
+
+### Filter operators
+
+| Operator | SQL generated |
+|----------|--------------|
+| `field: "value"` | `field = 'value'` |
+| `field__gt: 10` | `field > 10` |
+| `field__gte: 10` | `field >= 10` |
+| `field__lt: 100` | `field < 100` |
+| `field__lte: 100` | `field <= 100` |
+| `field__ne: "value"` | `field != 'value'` |
+| `field__contains: "text"` | `field LIKE '%text%'` |
+| `field__startswith: "pre"` | `field LIKE 'pre%'` |
+| `field__endswith: "fix"` | `field LIKE '%fix'` |
+| `OR: [...]` | `(clause1) OR (clause2) OR ...` |
+
+### Auth (optional)
+
+JWT-based Bearer token authentication via shared secret (HS256) or JWKS (RS256):
+
+```yaml
+mcp:
+  auth:
+    enabled: true
+    jwt_secret: "your-hs256-secret"        # HS256 shared secret
+    jwks_url: "https://example.com/.well-known/jwks.json"  # or JWKS endpoint
+    issuer: "https://issuer.example.com"
+    audience: "morphis-mcp"
+    identity_mappings:
+      - claim: sub
+        header: X-User-ID
+      - claim: tenant_id
+        header: X-Tenant-ID
+```
+
+When auth is enabled, the JWT sub/claims are mapped to HTTP headers that feed into row-level security filters.
+
+### Using with opencode
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "morphis": {
+      "type": "remote",
+      "url": "http://localhost:4000/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
 ## Row-level Security
 
 Control data access per-user or per-tenant via HTTP headers. Filters are applied automatically to all queries, mutations, and relation resolvers.
