@@ -29,7 +29,9 @@ mcp:
       material_features on mat_no) and common_queries[] with example tool calls.
       Use query_by_related when you need to find records based on a related table's
       values — the relation name comes from discover_tables. Use query for direct
-      table filters, search for full-text across indexes, get for primary key lookup."
+      table filters, search for full-text across indexes, get for primary key lookup.
+      Use graphql when you need nested related data in a single call — e.g. materials
+      with their sizes, colorways, and features all at once."
   auth:
     enabled: false
 

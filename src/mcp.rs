@@ -621,6 +621,51 @@ impl MorphisMCPServer {
                 ))?
         )]))
     }
+
+    /// Execute a GraphQL query against the built-in GraphQL endpoint.
+    /// Supports nested relations, filtering, and all features of the GraphQL API.
+    /// Example: { materialsList(filter: {status: "active"}) { mat_no name material_features { feature_name } } }
+    #[tool(description = "Execute a GraphQL query to fetch nested related data in a single call. Use this instead of multiple query/get calls when you need parent + related records together. Example: { materialsList { mat_no name sizes { size_code } colorways { hex } material_features { feature_name feature_attributes { attr_name } } } }")]
+    async fn graphql(
+        &self,
+        Parameters(args): Parameters<GraphqlArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let url = format!(
+            "http://localhost:{}/graphql",
+            self.config.server.port
+        );
+        let client = reqwest::Client::new();
+        let mut body = serde_json::json!({ "query": args.query });
+        if let Some(vars) = args.variables {
+            body["variables"] = vars;
+        }
+
+        let resp = client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    format!("GraphQL request failed: {}", e),
+                    None::<serde_json::Value>,
+                )
+            })?;
+
+        let text = resp.text().await.map_err(|e| {
+            McpError::internal_error(
+                format!("Failed to read GraphQL response: {}", e),
+                None::<serde_json::Value>,
+            )
+        })?;
+
+        let formatted = serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|v| serde_json::to_string_pretty(&v).ok())
+            .unwrap_or(text);
+
+        Ok(CallToolResult::success(vec![Content::text(formatted)]))
+    }
 }
 
 impl ServerHandler for MorphisMCPServer {
@@ -725,6 +770,15 @@ pub struct QueryByRelatedArgs {
     pub limit: Option<i32>,
     /// Number of records to skip (default: 0)
     pub offset: Option<i32>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GraphqlArgs {
+    /// GraphQL query string (supports nested relations, e.g. { materialsList { mat_no name material_features { feature_name } } })
+    pub query: String,
+    /// Optional variables for the query
+    #[serde(default)]
+    pub variables: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
