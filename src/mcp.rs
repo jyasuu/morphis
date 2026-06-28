@@ -215,11 +215,17 @@ impl MorphisMCPServer {
             table_cfg.table
         );
         let mut params: Vec<String> = Vec::new();
+        let int_fields: std::collections::HashSet<String> = table_cfg
+            .columns
+            .iter()
+            .filter(|c| matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64))
+            .map(|c| c.name.clone())
+            .collect();
 
         if let Some(ref filters) = args.filters {
             if let Some(obj) = filters.as_object() {
                 let mut clauses = Vec::new();
-                build_filter_clauses(obj, &col_names, &mut clauses, &mut params);
+                build_filter_clauses(obj, &col_names, &int_fields, &mut clauses, &mut params);
                 if !clauses.is_empty() {
                     sql.push_str(&format!(" WHERE {}", clauses.join(" AND ")));
                 }
@@ -551,11 +557,17 @@ impl MorphisMCPServer {
         })?;
 
         let mut sub_params: Vec<String> = Vec::new();
+        let related_int_fields: std::collections::HashSet<String> = related_cfg
+            .columns
+            .iter()
+            .filter(|c| matches!(c.col_type, crate::config::ColumnType::Int | crate::config::ColumnType::Int64))
+            .map(|c| c.name.clone())
+            .collect();
         let mut sub_where = String::new();
         if let Some(ref filters) = args.filters {
             if let Some(obj) = filters.as_object() {
                 let mut clauses = Vec::new();
-                build_filter_clauses(obj, &related_col_names, &mut clauses, &mut sub_params);
+                build_filter_clauses(obj, &related_col_names, &related_int_fields, &mut clauses, &mut sub_params);
                 if !clauses.is_empty() {
                     sub_where = format!(" WHERE {}", clauses.join(" AND "));
                 }
@@ -985,6 +997,7 @@ pub fn build_mcp_router(
 fn build_filter_clauses(
     obj: &serde_json::Map<String, serde_json::Value>,
     allowed: &[String],
+    int_fields: &std::collections::HashSet<String>,
     clauses: &mut Vec<String>,
     params: &mut Vec<String>,
 ) {
@@ -1000,7 +1013,7 @@ fn build_filter_clauses(
                 for item in arr {
                     if let Some(sub_obj) = item.as_object() {
                         let mut sub_clauses = Vec::new();
-                        build_filter_clauses(sub_obj, allowed, &mut sub_clauses, params);
+                        build_filter_clauses(sub_obj, allowed, int_fields, &mut sub_clauses, params);
                         if !sub_clauses.is_empty() {
                             or_clauses.push(format!("({})", sub_clauses.join(" AND ")));
                         }
@@ -1035,42 +1048,43 @@ fn build_filter_clauses(
 
         let val_str = json_val_to_string(val);
         let param_idx = params.len() + 1;
+        let cast = if int_fields.contains(&field) { "::int" } else { "" };
 
         match op {
             "eq" => {
-                clauses.push(format!("{} = ${}", field, param_idx));
+                clauses.push(format!("{} = ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "ne" => {
-                clauses.push(format!("{} <> ${}", field, param_idx));
+                clauses.push(format!("{} <> ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "gt" => {
-                clauses.push(format!("{} > ${}", field, param_idx));
+                clauses.push(format!("{} > ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "gte" => {
-                clauses.push(format!("{} >= ${}", field, param_idx));
+                clauses.push(format!("{} >= ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "lt" => {
-                clauses.push(format!("{} < ${}", field, param_idx));
+                clauses.push(format!("{} < ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "lte" => {
-                clauses.push(format!("{} <= ${}", field, param_idx));
+                clauses.push(format!("{} <= ${}{}", field, param_idx, cast));
                 params.push(val_str);
             }
             "contains" => {
-                clauses.push(format!("{} LIKE ${}", field, param_idx));
+                clauses.push(format!("{} LIKE ${}{}", field, param_idx, cast));
                 params.push(format!("%{}%", val_str));
             }
             "startswith" => {
-                clauses.push(format!("{} LIKE ${}", field, param_idx));
+                clauses.push(format!("{} LIKE ${}{}", field, param_idx, cast));
                 params.push(format!("{}%", val_str));
             }
             "endswith" => {
-                clauses.push(format!("{} LIKE ${}", field, param_idx));
+                clauses.push(format!("{} LIKE ${}{}", field, param_idx, cast));
                 params.push(format!("%{}", val_str));
             }
             _ => {}
