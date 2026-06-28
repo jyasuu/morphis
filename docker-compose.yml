@@ -80,8 +80,6 @@ services:
   pgx-listen:
     image: ghcr.io/jyasuu/pg_x:main
     command:
-      - "-U"
-      - "postgres://postgres:postgres@db:5432/morphis"
       - "listen"
       - "--channel"
       - "materials_channel"
@@ -92,6 +90,8 @@ services:
       - "materials"
       - "--id-field"
       - "mat_no"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/morphis
     volumes:
       - ./pgx/config.toml:/root/.pgx/config.toml
       - ./pgx/schema:/root/.pgx/schema

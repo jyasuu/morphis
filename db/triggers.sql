@@ -24,6 +24,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS material_change_trigger ON materials;
 CREATE TRIGGER material_change_trigger
 AFTER INSERT OR UPDATE OR DELETE ON materials
 FOR EACH ROW EXECUTE FUNCTION notify_material_change();
