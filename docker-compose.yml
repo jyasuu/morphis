@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -15,6 +16,7 @@ services:
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - ./db/triggers.sql:/docker-entrypoint-initdb.d/04-triggers.sql
 
   es:
     image: elasticsearch:8.17.0
@@ -74,6 +76,32 @@ services:
         condition: service_healthy
     volumes:
       - ./auth-proxy/config.docker.yaml:/app/config.yaml
+
+  pgx-listen:
+    image: ghcr.io/jyasuu/pg_x:main
+    command:
+      - "-U"
+      - "postgres://postgres:postgres@db:5432/morphis"
+      - "listen"
+      - "--channel"
+      - "materials_channel"
+      - "elasticsearch"
+      - "--es-url"
+      - "http://es:9200"
+      - "--index"
+      - "materials"
+      - "--id-field"
+      - "mat_no"
+    volumes:
+      - ./pgx/config.toml:/root/.pgx/config.toml
+      - ./pgx/schema:/root/.pgx/schema
+      - ./pgx/queries:/root/.pgx/queries
+    depends_on:
+      db:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+    restart: unless-stopped
 
   tests:
     image: tests:local

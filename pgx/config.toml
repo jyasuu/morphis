@@ -1,0 +1,20 @@
+[resolvers.material]
+sql = "SELECT mat_no, name, status, tenant_id FROM materials WHERE mat_no = $1"
+param = "mat_no"
+batch_by = "mat_no"
+
+[resolvers.sizes]
+sql = "SELECT id, size_code, mat_no, name FROM sizes WHERE mat_no = ANY($1)"
+param = "mat_no"
+batch_by = "mat_no"
+
+[resolvers.colorways]
+sql = "SELECT id, colorway_code, mat_no, name, hex FROM colorways WHERE mat_no = ANY($1)"
+param = "mat_no"
+batch_by = "mat_no"
+
+[resolvers.material_features]
+sql = "SELECT id, mat_no, feature_name, description FROM material_features WHERE mat_no = ANY($1)"
+param = "mat_no"
+batch_by = "mat_no"
+

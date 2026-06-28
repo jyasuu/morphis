@@ -1,0 +1,27 @@
+query material($mat_no: String!) {
+  material(mat_no: $mat_no) {
+    mat_no
+    name
+    status
+    tenant_id
+    sizes {
+      id
+      size_code
+      mat_no
+      name
+    }
+    colorways {
+      id
+      colorway_code
+      mat_no
+      name
+      hex
+    }
+    material_features {
+      id
+      mat_no
+      feature_name
+      description
+    }
+  }
+}
