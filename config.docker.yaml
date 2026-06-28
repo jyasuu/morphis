@@ -22,12 +22,14 @@ mcp:
       Use get for single-record lookup by primary key.
       Use search for full-text fuzzy matching across indexed fields.
       MATERIALS is the central table — most queries start here."
-    query_guidance: "MATERIALS is the main product catalog table. Join through
-      material_features for characteristics, sizes for size variants, colorways for
-      color variants. For 'find materials by feature', use query_by_related with
-      related='material_features'. For 'find materials by size code', use
-      query_by_related with related='sizes'. Search index supports cross-field
-      full-text on mat_no, name, status, and nested features/attributes."
+    query_guidance: "Always start by calling discover_tables to learn the available
+      tables, their columns (with types and prompts), relations (has_many/belongs_to
+      with field mappings), and common query patterns. The discover_tables output
+      includes a relations[] array showing how tables connect (e.g. materials has_many
+      material_features on mat_no) and common_queries[] with example tool calls.
+      Use query_by_related when you need to find records based on a related table's
+      values — the relation name comes from discover_tables. Use query for direct
+      table filters, search for full-text across indexes, get for primary key lookup."
   auth:
     enabled: false
 

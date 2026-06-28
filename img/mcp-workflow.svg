@@ -33,7 +33,7 @@
   <!-- ═══ STEP 1: System Instructions ═══ -->
   <rect x="160" y="50" width="500" height="44" rx="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.5"/>
   <text x="410" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">1. Server announces instructions via get_info() → InitializeResult.instructions</text>
-  <text x="410" y="84" text-anchor="middle" font-size="10" fill="#94a3b8">"Use discover_tables first. MATERIALS is the central table. Use query_by_related for related-table filters…"</text>
+  <text x="410" y="84" text-anchor="middle" font-size="10" fill="#94a3b8">"Always start by calling discover_tables — it returns tables, columns, relations[], common_queries[]"</text>
 
   <line x1="410" y1="94" x2="410" y2="120" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
   <text x="425" y="112" text-anchor="middle" font-size="9" fill="#6b7280">tells AI to call discover_tables</text>
