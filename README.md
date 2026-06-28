@@ -212,9 +212,9 @@ mutation { deleteLineItems(order_id: "ORD001", line_no: 1) { order_id line_no } 
 
 ## MCP Server (Streamable HTTP)
 
-Morphis ships with a built-in [MCP](https://modelcontextprotocol.io) server using Streamable HTTP transport, available at `POST /mcp`.
+Morphis ships with a built-in [MCP](https://modelcontextprotocol.io) server using Streamable HTTP transport, available at `POST /mcp`. The server is **config-driven**: prompts, examples, and common query patterns are defined in `config.yaml` and served to the LLM via `discover_tables` to guide tool selection.
 
-![MCP query_by_related workflow](img/mcp-workflow.svg)
+![Config-driven MCP prompt flow](img/mcp-workflow.svg)
 
 ### Configuration
 

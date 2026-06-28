@@ -1,101 +1,124 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 620" font-family="'SF Mono','JetBrains Mono','Cascadia Code','Consolas',monospace" font-size="13">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 660" font-family="'SF Mono','JetBrains Mono','Cascadia Code','Consolas',monospace" font-size="13">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
-    </marker>
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
-    </marker>
-    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
-    </marker>
-    <marker id="arrow-result" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
-    </marker>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f8fafc"/>
       <stop offset="100%" stop-color="#f1f5f9"/>
     </linearGradient>
+    <linearGradient id="prompt-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fdf4ff"/>
+      <stop offset="100%" stop-color="#fae8ff"/>
+    </linearGradient>
+    <linearGradient id="tool-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="config-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ecfdf5"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
+    </marker>
   </defs>
 
-  <rect width="800" height="620" fill="url(#bg)" rx="12" ry="12"/>
-  <text x="400" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#1e293b">MCP query_by_related — Workflow</text>
+  <rect width="800" height="660" fill="url(#bg)" rx="12" ry="12"/>
+  <text x="400" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#1e293b">Config-Driven MCP Prompts — Information Flow</text>
 
-  <!-- Step 1: User -->
-  <rect x="60" y="55" width="160" height="56" rx="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.5"/>
-  <text x="140" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">User</text>
-  <text x="140" y="98" text-anchor="middle" font-size="11" fill="#94a3b8">opencode run "find materials</text>
+  <!-- ═══ LAYER 1: CONFIG ═══ -->
+  <text x="400" y="58" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="2">CONFIGURATION LAYER</text>
 
-  <!-- Arrow 1→2 -->
-  <line x1="220" y1="83" x2="280" y2="83" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="250" y="75" text-anchor="middle" font-size="10" fill="#6b7280">1</text>
+  <!-- config.yaml -->
+  <rect x="40" y="68" width="340" height="130" rx="8" fill="url(#config-grad)" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="60" y="88" font-size="12" font-weight="700" fill="#065f46">config.yaml</text>
 
-  <!-- Step 2: opencode CLI -->
-  <rect x="290" y="55" width="160" height="56" rx="8" fill="#3b82f6" stroke="#2563eb" stroke-width="1.5"/>
-  <text x="370" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">opencode CLI</text>
-  <text x="370" y="96" text-anchor="middle" font-size="11" fill="#bfdbfe">MCP client · tool call</text>
+  <!-- config table prompts block -->
+  <rect x="55" y="98" width="310" height="88" rx="5" fill="#fff" stroke="#d1fae5" stroke-width="1"/>
+  <text x="65" y="115" font-size="10" font-weight="600" fill="#047857">tables:</text>
+  <text x="65" y="130" font-size="9" fill="#065f46">  materials:</text>
+  <text x="65" y="144" font-size="9" fill="#047857">    prompt: "Product catalog of raw materials…"</text>
+  <text x="65" y="158" font-size="9" fill="#047857">    common_queries:</text>
+  <text x="65" y="172" font-size="9" fill="#047857">      - tool: query_by_related  # "find materials with X"</text>
 
-  <!-- Arrow 2→3 -->
-  <line x1="450" y1="83" x2="510" y2="83" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="480" y="75" text-anchor="middle" font-size="10" fill="#6b7280">2</text>
+  <!-- config column prompts -->
+  <rect x="55" y="132" width="310" height="56" rx="5" fill="#fff" stroke="#d1fae5" stroke-width="1" opacity="0"/>
+  <text x="65" y="115" font-size="10" font-weight="600" fill="#047857">  material_features:</text>
+  <text x="65" y="130" font-size="9" fill="#065f46">    prompt: "Characteristics of materials…"</text>
+  <text x="65" y="144" font-size="9" fill="#047857">    columns:</text>
+  <text x="65" y="158" font-size="9" fill="#047857">      - name: feature_name</text>
+  <text x="65" y="172" font-size="9" fill="#047857">        prompt: "Name of the characteristic"</text>
+  <text x="65" y="186" font-size="9" fill="#047857">        examples: ["Water Resistant", "Eco"]</text>
 
-  <!-- Step 3: morphis MCP -->
-  <rect x="520" y="48" width="230" height="70" rx="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.5"/>
-  <text x="635" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">morphis MCP Server</text>
-  <text x="635" y="90" text-anchor="middle" font-size="11" fill="#bfdbfe">POST /mcp · Streamable HTTP</text>
-  <text x="635" y="108" text-anchor="middle" font-size="11" fill="#93c5fd">Axum · rmcp 1.8 · tokio</text>
+  <!-- mcp.prompts section -->
+  <rect x="420" y="68" width="340" height="130" rx="8" fill="url(#config-grad)" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="440" y="88" font-size="12" font-weight="700" fill="#065f46">config.yaml — mcp.prompts</text>
 
-  <!-- Arrow 3→4 (query_by_related) -->
-  <line x1="635" y1="118" x2="635" y2="170" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
-  <text x="650" y="148" text-anchor="middle" font-size="10" fill="#3b82f6">query_by_related</text>
+  <rect x="435" y="98" width="310" height="88" rx="5" fill="#fff" stroke="#d1fae5" stroke-width="1"/>
+  <text x="445" y="115" font-size="10" font-weight="600" fill="#047857">mcp:</text>
+  <text x="445" y="130" font-size="9" fill="#065f46">  prompts:</text>
+  <text x="445" y="144" font-size="9" fill="#047857">    system: |</text>
+  <text x="445" y="158" font-size="9" fill="#047857">      You are a DB assistant.</text>
+  <text x="445" y="172" font-size="9" fill="#047857">      MATERIALS is central table.</text>
+  <text x="445" y="186" font-size="9" fill="#047857">      Use query_by_related for related-table filters.</text>
+  <text x="445" y="200" font-size="9" fill="#047857">    query_guidance: "MATERIALS is the main product…"</text>
 
-  <!-- Step 4: Parse & Resolve -->
-  <rect x="480" y="180" width="310" height="60" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="635" y="202" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">Parse &amp; Resolve Config</text>
-  <text x="635" y="220" text-anchor="middle" font-size="11" fill="#3b82f6">Look up relation → material_features</text>
-  <text x="635" y="234" text-anchor="middle" font-size="11" fill="#2563eb">Build subquery: SELECT mat_no FROM ... WHERE feature_name = $1</text>
+  <!-- Arrow: config → MCP Server -->
+  <line x1="210" y1="198" x2="210" y2="245" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <line x1="590" y1="198" x2="590" y2="245" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="400" y="228" text-anchor="middle" font-size="10" fill="#22c55e">loaded at startup</text>
 
-  <!-- Arrow 4→5 -->
-  <path d="M 635 240 L 635 275 L 370 275 L 370 305" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)" fill="none"/>
-  <text x="500" y="267" text-anchor="middle" font-size="10" fill="#6b7280">apply row_filters</text>
+  <!-- ═══ LAYER 2: MCP SERVER ═══ -->
+  <text x="400" y="260" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="2">MCP SERVER LAYER</text>
 
-  <!-- Step 5: PostgreSQL -->
-  <rect x="220" y="315" width="300" height="56" rx="8" fill="#064e3b" stroke="#047857" stroke-width="1.5"/>
-  <text x="370" y="338" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">PostgreSQL</text>
-  <text x="370" y="356" text-anchor="middle" font-size="11" fill="#6ee7b7">sqlx · Pool&lt;Postgres&gt;</text>
+  <!-- morphis MCP Server box -->
+  <rect x="240" y="272" width="320" height="70" rx="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="400" y="296" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">morphis MCP Server</text>
+  <text x="400" y="314" text-anchor="middle" font-size="11" fill="#bfdbfe">POST /mcp — Streamable HTTP (Axum + rmcp)</text>
+  <text x="400" y="332" text-anchor="middle" font-size="11" fill="#93c5fd">serves discover_tables · query · query_by_related · search · get</text>
 
-  <!-- SQL callout -->
-  <rect x="220" y="380" width="300" height="72" rx="6" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="235" y="398" font-size="11" font-weight="600" fill="#065f46">SQL generated</text>
-  <text font-size="10" fill="#047857">
-    <tspan x="235" dy="17">SELECT COALESCE(json_agg(row_to_json(t)), '[]')</tspan>
-    <tspan x="235" dy="14">FROM (SELECT * FROM materials WHERE mat_no IN (</tspan>
-    <tspan x="235" dy="14">  SELECT mat_no FROM material_features WHERE feature_name = $1</tspan>
-    <tspan x="235" dy="14">) LIMIT 50 OFFSET 0) t</tspan>
-  </text>
+  <!-- Tool details callout -->
+  <rect x="100" y="355" width="600" height="82" rx="6" fill="url(#tool-grad)" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="120" y="374" font-size="11" font-weight="600" fill="#1e40af">How discover_tables serves prompts to the LLM</text>
 
-  <!-- Arrow 5→6 (result) -->
-  <line x1="370" y1="458" x2="370" y2="495" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="385" y="480" text-anchor="middle" font-size="10" fill="#22c55e">3</text>
+  <rect x="115" y="385" width="570" height="42" rx="4" fill="#fff" stroke="#dbeafe" stroke-width="1"/>
+  <text x="125" y="400" font-size="9" fill="#1e40af">discover_tables() → JSON with per-table</text>
+  <text x="125" y="414" font-size="9" fill="#3b82f6">{ prompt, columns: [{ name, type, prompt, examples }], common_queries, search_indexes }</text>
 
-  <!-- Step 6: JSON Response -->
-  <rect x="160" y="505" width="420" height="56" rx="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
-  <text x="370" y="528" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">JSON Result → opencode</text>
-  <text x="370" y="546" text-anchor="middle" font-size="11" fill="#b45309">count: 2, rows: [{mat_no: M001, …}, {mat_no: M002, …}]</text>
+  <!-- system prompt callout -->
+  <rect x="200" y="400" width="400" height="28" rx="4" fill="#fef3c7" stroke="#fde68a" stroke-width="1"/>
+  <text x="400" y="419" text-anchor="middle" font-size="10" fill="#92400e">get_info() → instructions = mcp.prompts.query_guidance → InitializeResult.instructions</text>
 
-  <!-- Arrow 6→User (final) -->
-  <path d="M 160 531 L 60 531 L 60 111 L 140 111" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow-result)" fill="none"/>
-  <text x="95" y="523" text-anchor="middle" font-size="10" fill="#f59e0b">4</text>
+  <!-- Arrow: discover_tables → LLM -->
+  <line x1="400" y1="342" x2="400" y2="353" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
 
-  <!-- Legend -->
-  <rect x="30" y="575" width="740" height="35" rx="6" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
-  <text x="50" y="598" font-size="10" font-weight="600" fill="#64748b">Legend:</text>
-  <circle cx="110" cy="596" r="5" fill="#6b7280"/><text x="120" y="599" font-size="10" fill="#64748b">1 trigger</text>
-  <circle cx="185" cy="596" r="5" fill="#3b82f6"/><text x="195" y="599" font-size="10" fill="#64748b">2 tool dispatch</text>
-  <circle cx="280" cy="596" r="5" fill="#22c55e"/><text x="290" y="599" font-size="10" fill="#64748b">3 return</text>
-  <circle cx="355" cy="596" r="5" fill="#f59e0b"/><text x="365" y="599" font-size="10" fill="#64748b">4 present</text>
-  <rect x="430" y="590" width="14" height="12" rx="3" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1"/>
-  <text x="450" y="600" font-size="10" fill="#64748b">SQL detail</text>
-  <rect x="530" y="590" width="14" height="12" rx="3" fill="#fffbeb" stroke="#fde68a" stroke-width="1"/>
-  <text x="550" y="600" font-size="10" fill="#64748b">Result</text>
+  <!-- Arrow: prompts data out -->
+  <line x1="400" y1="437" x2="400" y2="465" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="415" y="458" text-anchor="middle" font-size="10" fill="#a855f7">rich prompt context</text>
+
+  <!-- ═══ LAYER 3: LLM CONTEXT ═══ -->
+  <text x="400" y="480" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="2">LLM CONTEXT (What the AI "sees")</text>
+
+  <rect x="90" y="492" width="620" height="105" rx="8" fill="url(#prompt-grad)" stroke="#d8b4fe" stroke-width="1.5"/>
+  <text x="110" y="512" font-size="11" font-weight="700" fill="#6b21a8">LLM Context — Enriched by MCP Prompts</text>
+
+  <text x="110" y="532" font-size="10" font-weight="600" fill="#7e22ce">System:</text>
+  <text x="110" y="546" font-size="9" fill="#6b21a8">"You are a DB assistant. MATERIALS is central. Use query_by_related for related filters."</text>
+
+  <text x="110" y="565" font-size="10" font-weight="600" fill="#7e22ce">discover_tables result:</text>
+  <text x="110" y="579" font-size="9" fill="#6b21a8">materials: "Product catalog of raw materials" → common: query_by_related(material_features)</text>
+  <text x="110" y="593" font-size="9" fill="#6b21a8">material_features.feature_name: examples=["Water Resistant","Eco","Flame Retardant"]</text>
+
+  <!-- Arrow: LLM context → Tool call -->
+  <line x1="400" y1="597" x2="400" y2="628" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="415" y="618" text-anchor="middle" font-size="10" fill="#a855f7">LLM maps intent → tool + args</text>
+
+  <!-- Result -->
+  <rect x="220" y="635" width="360" height="20" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="400" y="650" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">→ query_by_related(table: materials, related: material_features, filters: {feature_name: "Water Resistant"})</text>
+
 </svg>
