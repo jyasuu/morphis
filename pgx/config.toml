@@ -14,7 +14,12 @@ param = "mat_no"
 batch_by = "mat_no"
 
 [resolvers.material_features]
-sql = "SELECT id, mat_no, feature_name, description FROM material_features WHERE mat_no = ANY($1)"
+sql = "SELECT id, id AS feature_id, mat_no, feature_name, description FROM material_features WHERE mat_no = ANY($1)"
 param = "mat_no"
 batch_by = "mat_no"
+
+[resolvers.feature_attributes]
+sql = "SELECT id, feature_id, attr_name, attr_value FROM feature_attributes WHERE feature_id::text = ANY($1)"
+param = "feature_id"
+batch_by = "feature_id"
 

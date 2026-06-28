@@ -25,9 +25,18 @@ type Colorway {
 
 type MaterialFeature {
   id: Int!
+  feature_id: Int!
   mat_no: String!
   feature_name: String!
   description: String
+  feature_attributes: [FeatureAttribute!]!
+}
+
+type FeatureAttribute {
+  id: Int!
+  feature_id: Int!
+  attr_name: String!
+  attr_value: String!
 }
 
 type Query {

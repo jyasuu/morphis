@@ -19,9 +19,16 @@ query material($mat_no: String!) {
     }
     material_features {
       id
+      feature_id
       mat_no
       feature_name
       description
+      feature_attributes {
+        id
+        feature_id
+        attr_name
+        attr_value
+      }
     }
   }
 }
