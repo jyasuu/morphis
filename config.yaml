@@ -45,7 +45,15 @@ mcp:
       The relation resolvers (material, sizes, colorways, feature_attributes)
       are available as nested fields on the return type."
   auth:
-    enabled: false
+    enabled: true
+    jwt_secret: "morphis-mcp-secret-change-in-production"
+    identity_mappings:
+      - claim: sub
+        header: X-User-ID
+      - claim: tenant_id
+        header: X-Tenant-ID
+      - claim: role
+        header: X-Role
 
 tables:
   materials:

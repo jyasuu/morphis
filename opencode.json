@@ -4,7 +4,10 @@
     "morphis": {
       "type": "remote",
       "url": "http://localhost:9080/mcp",
-      "enabled": true
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiAib3BlbmNvZGUtY2xpZW50IiwgInJvbGUiOiAiYWRtaW4iLCAidGVuYW50X2lkIjogImRlZmF1bHQiLCAiaWF0IjogMTc4MjkxNjQ2NiwgImV4cCI6IDIwOTgyNzY0NjZ9.m4iXzPDjybWFZLyd8s_6WkkZLLR58ohdwzjUwYtGEkw"
+      }
     }
   }
 }
