@@ -12,6 +12,8 @@ pub struct Config {
     pub search_indexes: Vec<SearchIndexConfig>,
     #[serde(default)]
     pub mcp: Option<MCPConfig>,
+    #[serde(default)]
+    pub auth: Option<AuthConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -116,6 +118,22 @@ fn default_host() -> String {
 fn default_port() -> u16 {
     4000
 }
+
+// ── Auth Configuration (defense-in-depth JWT validation) ─────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub jwks_url: Option<String>,
+    pub issuer: Option<String>,
+    pub audience: Option<String>,
+    pub jwt_secret: Option<String>,
+    #[serde(default)]
+    pub identity_mappings: Vec<MCPIdentityMapping>,
+}
+
+// ── End Auth Configuration ────────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]

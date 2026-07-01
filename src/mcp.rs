@@ -538,13 +538,19 @@ async fn mcp_auth_middleware(
                         }
                         Err(e) => {
                             tracing::warn!("MCP JWT validation failed: {}", e);
-                            Identity::default()
+                            return Response::builder()
+                                .status(401)
+                                .body(axum::body::Body::from("Unauthorized"))
+                                .unwrap();
                         }
                     }
                 }
                 None => {
-                    tracing::debug!("MCP request without Bearer token (will use empty identity)");
-                    Identity::default()
+                    tracing::warn!("MCP request without Bearer token (rejected)");
+                    return Response::builder()
+                        .status(401)
+                        .body(axum::body::Body::from("Unauthorized"))
+                        .unwrap();
                 }
             }
         }

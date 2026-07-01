@@ -3,7 +3,7 @@
   "mcp": {
     "morphis": {
       "type": "remote",
-      "url": "http://localhost:4000/mcp",
+      "url": "http://localhost:9080/mcp",
       "enabled": true
     }
   }

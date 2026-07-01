@@ -63,6 +63,11 @@ impl ProxyHttp for AuthProxy {
     }
 
     async fn request_filter(&self, session: &mut Session, _ctx: &mut ()) -> pingora::Result<bool> {
+        // Skip JWT validation for MCP endpoints — MCP has its own auth
+        if session.req_header().uri.path().starts_with("/mcp") {
+            return Ok(false);
+        }
+
         let auth_header = session
             .req_header()
             .headers
@@ -87,9 +92,7 @@ impl ProxyHttp for AuthProxy {
             if !self.config.jwt_issuer.is_empty() {
                 validation.set_issuer(&[&self.config.jwt_issuer]);
             }
-            validation.validate_exp = false;
             validation.validate_aud = false;
-            validation.required_spec_claims.clear();
 
             let mut result = None;
             for key in &self.jwks_keys {
@@ -107,9 +110,7 @@ impl ProxyHttp for AuthProxy {
                 }
             }
         } else if let Some(ref key) = self.decoding_key {
-            let mut validation = Validation::new(Algorithm::HS256);
-            validation.validate_exp = false;
-            validation.required_spec_claims.clear();
+            let validation = Validation::new(Algorithm::HS256);
             match decode::<Claims>(token, key, &validation) {
                 Ok(data) => data.claims,
                 Err(e) => {

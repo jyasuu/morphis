@@ -33,14 +33,14 @@ echo "  got token: ${KEYCLOAK_TOKEN:0:20}..."
 
 echo ""
 echo "=== Seeding Elasticsearch ==="
-ES_URL=http://es:9200 /tests/seed_es.sh
+ES_URL=http://elastic:morphis_es_pass@es:9200 ES_AUTH="-u elastic:morphis_es_pass" /tests/seed_es.sh
 
 echo ""
 echo "=== Cleaning up stale test data ==="
 # Clean up ES test docs
-curl -s -X DELETE http://es:9200/materials/_doc/ES-TEST-A > /dev/null
-curl -s -X DELETE http://es:9200/materials/_doc/ES-TEST-B > /dev/null
-curl -s -X POST http://es:9200/materials/_refresh > /dev/null
+curl -s -u elastic:morphis_es_pass -X DELETE http://es:9200/materials/_doc/ES-TEST-A > /dev/null
+curl -s -u elastic:morphis_es_pass -X DELETE http://es:9200/materials/_doc/ES-TEST-B > /dev/null
+curl -s -u elastic:morphis_es_pass -X POST http://es:9200/materials/_refresh > /dev/null
 # Clean up materials
 for mat in HTEST RLTEST1 RLTEST2 DTEST ES-TEST-A ES-TEST-B; do
   curl -s -X POST http://app:4000/graphql \

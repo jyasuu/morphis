@@ -222,6 +222,7 @@ jsonpath "$.errors" count > 0
 
 # Create ES doc with tenant_id "alpha"
 POST http://localhost:9200/materials/_doc/ES-TEST-A
+Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 Content-Type: application/json
 {
   "mat_no": "ES-TEST-A",
@@ -233,6 +234,7 @@ HTTP 201
 
 # Create ES doc with tenant_id "beta"
 POST http://localhost:9200/materials/_doc/ES-TEST-B
+Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 Content-Type: application/json
 {
   "mat_no": "ES-TEST-B",
@@ -244,6 +246,7 @@ HTTP 201
 
 # Refresh ES index so docs are searchable
 POST http://localhost:9200/materials/_refresh
+Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
 
 # Search with X-Tenant-ID: alpha — only ES-TEST-A
@@ -282,8 +285,10 @@ jsonpath "$.data.searchMaterials" count == 2
 
 # Clean up ES test docs
 DELETE http://localhost:9200/materials/_doc/ES-TEST-A
+Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
 DELETE http://localhost:9200/materials/_doc/ES-TEST-B
+Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
 
 # Clean up PG test data

@@ -6,9 +6,13 @@ mod schema;
 use std::sync::Arc;
 
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{Router, extract::Extension, routing::get};
+use axum::{
+    Router, extract::Extension, middleware, response::Response, routing::get,
+};
+use jsonwebtoken::{DecodingKey, Validation};
 use tower_http::cors::CorsLayer;
 
+use config::AuthConfig;
 use schema::Identity;
 
 #[tokio::main]
@@ -29,12 +33,29 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = schema::build_schema(config.clone(), pool.clone()).await;
 
+    let auth_config = config.auth.clone().unwrap_or(AuthConfig {
+        enabled: false,
+        jwks_url: None,
+        issuer: None,
+        audience: None,
+        jwt_secret: None,
+        identity_mappings: vec![],
+    });
+
     let mut app = Router::new()
         .route("/graphql", get(graphql_handler).post(graphql_handler))
         .route("/playground", get(graphql_playground))
         .route("/health", get(health))
         .layer(CorsLayer::permissive())
         .layer(Extension(schema));
+
+    if auth_config.enabled {
+        let auth = Arc::new(auth_config);
+        app = app.layer(middleware::from_fn(move |req, next: middleware::Next| {
+            let auth = auth.clone();
+            async move { auth_middleware(req, next, auth).await }
+        }));
+    }
 
     // Mount MCP sub-router if enabled
     if let Some(mcp_router) = mcp::build_mcp_router(config.clone(), pool.clone()) {
@@ -77,6 +98,102 @@ async fn graphql_playground() -> axum::response::Html<&'static str> {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn auth_middleware(
+    mut req: axum::http::Request<axum::body::Body>,
+    next: middleware::Next,
+    auth: Arc<AuthConfig>,
+) -> Response {
+    let auth_header = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .map(|s| s.trim().to_string());
+
+    if let Some(token) = auth_header {
+        let claims = validate_jwt(&token, &auth).await;
+        if let Ok(claims) = claims {
+            let headers = req.headers_mut();
+            for mapping in &auth.identity_mappings {
+                if let Some(val) = claims.get(&mapping.claim).and_then(|v| v.as_str()) {
+                    if let Ok(name) = axum::http::header::HeaderName::from_bytes(mapping.header.as_bytes())
+                    {
+                        if let Ok(value) = axum::http::HeaderValue::from_str(val) {
+                            headers.insert(name, value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    next.run(req).await
+}
+
+async fn validate_jwt(token: &str, auth: &AuthConfig) -> Result<serde_json::Value, String> {
+    use jsonwebtoken::decode_header;
+
+    let header = decode_header(token).map_err(|e| format!("JWT header decode failed: {}", e))?;
+
+    if let Some(ref secret) = auth.jwt_secret {
+        let mut validation = Validation::new(header.alg);
+        if let Some(ref issuer) = auth.issuer {
+            validation.set_issuer(&[issuer.as_str()]);
+        }
+        if let Some(ref aud) = auth.audience {
+            validation.set_audience(&[aud.as_str()]);
+        }
+        validation.validate_exp = true;
+
+        let data = jsonwebtoken::decode::<serde_json::Value>(
+            token,
+            &DecodingKey::from_secret(secret.as_bytes()),
+            &validation,
+        )
+        .map_err(|e| format!("JWT validation failed: {}", e))?;
+        return Ok(data.claims);
+    }
+
+    if let Some(ref jwks_url) = auth.jwks_url {
+        let keys = fetch_jwks_keys(jwks_url).await.map_err(|e| format!("JWKS fetch failed: {}", e))?;
+        for key in &keys {
+            let mut validation = Validation::new(header.alg);
+            if let Some(ref issuer) = auth.issuer {
+                validation.set_issuer(&[issuer.as_str()]);
+            }
+            if let Some(ref aud) = auth.audience {
+                validation.set_audience(&[aud.as_str()]);
+            }
+            validation.validate_exp = true;
+
+            if let Ok(data) = jsonwebtoken::decode::<serde_json::Value>(token, key, &validation) {
+                return Ok(data.claims);
+            }
+        }
+        return Err("No matching JWK key found".to_string());
+    }
+
+    Err("No jwt_secret or jwks_url configured".into())
+}
+
+async fn fetch_jwks_keys(url: &str) -> Result<Vec<DecodingKey>, String> {
+    let body = reqwest::get(url)
+        .await
+        .map_err(|e| format!("JWKS fetch failed: {}", e))?
+        .text()
+        .await
+        .map_err(|e| format!("JWKS body read failed: {}", e))?;
+    let jwk_set: jsonwebtoken::jwk::JwkSet =
+        serde_json::from_str(&body).map_err(|e| format!("JWKS parse failed: {}", e))?;
+    let mut keys = Vec::new();
+    for jwk in &jwk_set.keys {
+        if let Ok(key) = DecodingKey::from_jwk(jwk) {
+            keys.push(key);
+        }
+    }
+    Ok(keys)
 }
 
 const GRAPHQL_PLAYGROUND_HTML: &str = r#"<!DOCTYPE html>

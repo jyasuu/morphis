@@ -2,10 +2,11 @@
 set -euo pipefail
 
 ES_URL="${ES_URL:-http://localhost:9200}"
+ES_AUTH="${ES_AUTH:--u elastic:morphis_es_pass}"
 INDEX="${1:-materials}"
 
 echo "=== Creating index: $INDEX ==="
-curl -s -X PUT "$ES_URL/$INDEX" -H "Content-Type: application/json" -d '{
+curl -s $ES_AUTH -X PUT "$ES_URL/$INDEX" -H "Content-Type: application/json" -d '{
   "settings": { "number_of_shards": 1, "number_of_replicas": 0 }
 }' | python3 -m json.tool
 
@@ -13,7 +14,7 @@ echo ""
 echo "=== Indexing documents ==="
 
 # Material M001 - Premium Cotton Canvas
-curl -s -X POST "$ES_URL/$INDEX/_doc/M001" -H "Content-Type: application/json" -d '{
+curl -s $ES_AUTH -X POST "$ES_URL/$INDEX/_doc/M001" -H "Content-Type: application/json" -d '{
   "mat_no": "M001",
   "name": "Premium Cotton Canvas",
   "status": "active",
@@ -38,7 +39,7 @@ curl -s -X POST "$ES_URL/$INDEX/_doc/M001" -H "Content-Type: application/json" -
 }' | python3 -m json.tool
 
 # Material M002 - Merino Wool Blend
-curl -s -X POST "$ES_URL/$INDEX/_doc/M002" -H "Content-Type: application/json" -d '{
+curl -s $ES_AUTH -X POST "$ES_URL/$INDEX/_doc/M002" -H "Content-Type: application/json" -d '{
   "mat_no": "M002",
   "name": "Merino Wool Blend",
   "status": "active",
@@ -63,7 +64,7 @@ curl -s -X POST "$ES_URL/$INDEX/_doc/M002" -H "Content-Type: application/json" -
 }' | python3 -m json.tool
 
 # Material M003 - Recycled Polyester
-curl -s -X POST "$ES_URL/$INDEX/_doc/M003" -H "Content-Type: application/json" -d '{
+curl -s $ES_AUTH -X POST "$ES_URL/$INDEX/_doc/M003" -H "Content-Type: application/json" -d '{
   "mat_no": "M003",
   "name": "Recycled Polyester",
   "status": "discontinued",
@@ -89,11 +90,11 @@ curl -s -X POST "$ES_URL/$INDEX/_doc/M003" -H "Content-Type: application/json" -
 
 echo ""
 echo "=== Refreshing index ==="
-curl -s -X POST "$ES_URL/$INDEX/_refresh" | python3 -m json.tool
+curl -s $ES_AUTH -X POST "$ES_URL/$INDEX/_refresh" | python3 -m json.tool
 
 echo ""
 echo "=== Verifying count ==="
-curl -s "$ES_URL/$INDEX/_count" | python3 -m json.tool
+curl -s $ES_AUTH "$ES_URL/$INDEX/_count" | python3 -m json.tool
 
 echo ""
 echo "=== Done ==="
