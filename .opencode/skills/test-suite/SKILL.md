@@ -67,19 +67,35 @@ Runs Keycloak OIDC login → frontend proxy → auth-proxy → API chain.
 bash scripts/run-frontend-tests.sh
 ```
 
-**Manual** (for debugging):
+⚠ **Caveat:** the script can time out in some environments (background process + wait interaction). If it hangs, use the manual approach below.
+
+**Manual** (for debugging — critical to run as a single command):
 ```bash
 # Kill stale process first
-lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:3000 | xargs kill -9 2>/dev/null; sleep 2
+# Verify port is free
+ss -tlnp | grep 3000 && kill -9 $(ss -tlnp | grep 3000 | grep -oP 'pid=\K\d+') 2>/dev/null; sleep 1
 
-# Start frontend
-set -a; source scripts/.env.frontend; set +a
-npx next dev --port 3000 &
-wait_for_http "Frontend" "http://localhost:3000/login" 200 30
+# Start frontend with nohup (so it survives shell exit)
+cd frontend && source ../scripts/.env.frontend && \
+  nohup npx next dev --port 3000 > /tmp/nextdev.log 2>&1 &
+for i in $(seq 1 30); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login 2>/dev/null || echo "000")
+  if [ "$code" = "200" ]; then break; fi
+  sleep 1
+done
 
-# Run tests
-npx playwright test tests/auth-chain.spec.ts --workers=1
+# Run tests — MUST source env vars in same shell as playwright
+source ../scripts/.env.frontend && \
+  cd frontend && npx playwright test tests/auth-chain.spec.ts --workers=1
 ```
+
+### Common failure patterns
+
+- **Env vars not propagating**: `source scripts/.env.frontend` must be done in the SAME shell that runs `npx playwright test`. Setting them in a parent shell or separate command will NOT work.
+- **Frontend dies before tests run**: Always use `nohup` when starting `npx next dev` in the background. Without it, the process is killed when the shell exits.
+- **Stale process on port 3000**: The dev server or a previous test run can leave a process bound to port 3000. Kill it with `kill -9` and verify with `ss -tlnp | grep 3000` before retrying.
+- **`scripts/run-frontend-tests.sh` hangs**: Kill any stale processes on port 3000 first, then retry the script.
 
 ### Key env vars (from `scripts/.env.frontend`)
 
