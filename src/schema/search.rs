@@ -90,8 +90,8 @@ async fn es_search(
     identity: Option<&Identity>,
     row_filters: &[RowFilterConfig],
 ) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
-    let (es_client, es_url) = match (&app_ctx.es_client, &app_ctx.es_url) {
-        (Some(c), Some(u)) => (c.clone(), u.clone()),
+    let (es_client, es_url, es_cb) = match (&app_ctx.es_client, &app_ctx.es_url, &app_ctx.es_circuit_breaker) {
+        (Some(c), Some(u), Some(cb)) => (c.clone(), u.clone(), cb.clone()),
         _ => return Err(async_graphql::Error::new("Elasticsearch not configured")),
     };
 
@@ -120,10 +120,8 @@ async fn es_search(
         es_url.trim_end_matches('/'),
         index_cfg.index
     );
-    let resp = es_client
-        .post(&url)
-        .json(&es_query)
-        .send()
+    let resp = es_cb
+        .call(|| async { es_client.post(&url).json(&es_query).send().await })
         .await
         .map_err(|e| async_graphql::Error::new(format!("ES request failed: {}", e)))?;
 

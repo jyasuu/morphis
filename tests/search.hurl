@@ -49,7 +49,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.data.searchMaterials" count == 1
 jsonpath "$.data.searchMaterials[0].mat_no" == "M001"
-jsonpath "$.data.searchMaterials[0].material_features" count == 2
+jsonpath "$.data.searchMaterials[0].material_features" count == 3
 
 POST http://localhost:4000/graphql
 Content-Type: application/json

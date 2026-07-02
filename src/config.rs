@@ -14,6 +14,8 @@ pub struct Config {
     pub mcp: Option<MCPConfig>,
     #[serde(default)]
     pub auth: Option<AuthConfig>,
+    #[serde(default)]
+    pub circuit_breakers: CircuitBreakersConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -102,6 +104,59 @@ pub struct DatabaseConfig {
 fn default_max_connections() -> u32 {
     10
 }
+
+// ── Circuit Breaker Configuration ─────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct CircuitBreakersConfig {
+    pub es: CircuitBreakerInstanceConfig,
+    pub jwks: CircuitBreakerInstanceConfig,
+}
+
+impl Default for CircuitBreakersConfig {
+    fn default() -> Self {
+        Self {
+            es: CircuitBreakerInstanceConfig {
+                failure_threshold: 5,
+                reset_timeout_secs: 30,
+                half_open_max_requests: 3,
+            },
+            jwks: CircuitBreakerInstanceConfig {
+                failure_threshold: 3,
+                reset_timeout_secs: 60,
+                half_open_max_requests: 1,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CircuitBreakerInstanceConfig {
+    #[serde(default = "default_failure_threshold")]
+    pub failure_threshold: u64,
+    #[serde(default = "default_reset_timeout_secs")]
+    pub reset_timeout_secs: u64,
+    #[serde(default = "default_half_open_max")]
+    pub half_open_max_requests: u64,
+}
+
+fn default_failure_threshold() -> u64 { 5 }
+fn default_reset_timeout_secs() -> u64 { 30 }
+fn default_half_open_max() -> u64 { 3 }
+
+impl CircuitBreakerInstanceConfig {
+    pub fn to_circuit_breaker_config(&self) -> crate::circuit_breaker::CircuitBreakerConfig {
+        use std::time::Duration;
+        crate::circuit_breaker::CircuitBreakerConfig {
+            failure_threshold: self.failure_threshold,
+            reset_timeout: Duration::from_secs(self.reset_timeout_secs),
+            half_open_max_requests: self.half_open_max_requests,
+        }
+    }
+}
+
+// ── End Circuit Breaker Configuration ─────────────────────────
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerConfig {

@@ -155,6 +155,14 @@ for f in auth_proxy.hurl; do
   echo ""
 done
 
+# Re-seed shared state for downstream consumers (frontend tests, etc.)
+# row_filters.hurl cleans up ALL user_permissions rows, so we re-add admin.
+PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
+    ('admin', 'default', 'main')
+  ON CONFLICT DO NOTHING;
+" > /dev/null 2>&1
+
 if [ "$FAIL" -eq 0 ]; then
   echo "All tests passed!"
 else

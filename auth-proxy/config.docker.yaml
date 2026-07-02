@@ -1,6 +1,7 @@
 listen_addr: "0.0.0.0:9080"
 upstream: "http://app:4000"
 jwt_jwks_url: "http://keycloak:8080/realms/morphis/protocol/openid-connect/certs"
+jwt_secret: "test-secret-key-for-integration-tests"
 jwt_issuer: ""
 require_auth: true
 header_mappings:

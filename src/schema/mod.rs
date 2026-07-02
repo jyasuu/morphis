@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 use async_graphql::dynamic::{InputObject, InputValue, Schema, TypeRef};
 use sqlx::{Pool, Postgres};
 
+use crate::circuit_breaker::CircuitBreaker;
 use crate::config::{Config, PermissionCache, RowFilterConfig};
 
 #[derive(Clone)]
@@ -21,6 +22,7 @@ pub(crate) struct AppContext {
     pub es_client: Option<reqwest::Client>,
     pub es_url: Option<String>,
     pub permission_cache: Arc<Mutex<PermissionCache>>,
+    pub es_circuit_breaker: Option<CircuitBreaker>,
 }
 
 #[derive(Clone, Default)]
@@ -89,10 +91,15 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
         .as_ref()
         .map(|_| reqwest::Client::new());
     let es_url = config.elasticsearch.as_ref().map(|c| c.url.clone());
+    let es_circuit_breaker = config
+        .elasticsearch
+        .as_ref()
+        .map(|_| CircuitBreaker::new(config.circuit_breakers.es.to_circuit_breaker_config()));
     let ctx = Arc::new(AppContext {
         pool,
         es_client,
         es_url,
+        es_circuit_breaker,
         permission_cache: Arc::new(Mutex::new(PermissionCache::new())),
     });
 

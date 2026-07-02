@@ -16,6 +16,7 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{tool, tool_router, ErrorData as McpError, RoleServer, ServerHandler};
 use sqlx::{Pool, Postgres};
 
+use crate::circuit_breaker::CircuitBreaker;
 use crate::config::{Config, MCPAuthConfig};
 use crate::schema::AppContext;
 use crate::schema::Identity;
@@ -36,6 +37,7 @@ pub struct MCPState {
     pub app_context: Arc<AppContext>,
     #[allow(dead_code)]
     pub config: Arc<Config>,
+    pub jwks_circuit_breaker: Option<CircuitBreaker>,
 }
 
 // ── MCP Server ─────────────────────────────────────────────────
@@ -522,7 +524,7 @@ async fn mcp_auth_middleware(
 
             match token {
                 Some(token) => {
-                    match validate_jwt(&token, auth_cfg).await {
+                    match validate_jwt(&token, auth_cfg, state.jwks_circuit_breaker.as_ref()).await {
                         Ok(claims) => {
                             let mut headers = std::collections::HashMap::new();
                             for mapping in &auth_cfg.identity_mappings {
@@ -586,6 +588,7 @@ async fn mcp_auth_middleware(
 async fn validate_jwt(
     token: &str,
     auth: &MCPAuthConfig,
+    jwks_breaker: Option<&CircuitBreaker>,
 ) -> Result<serde_json::Value, String> {
     use jsonwebtoken::decode_header;
 
@@ -610,7 +613,7 @@ async fn validate_jwt(
         .map_err(|e| format!("JWT validation failed: {}", e))?;
         Ok(data.claims)
     } else if let Some(ref jwks_url) = auth.jwks_url {
-        let jwks = fetch_jwks(jwks_url).await?;
+        let jwks = fetch_jwks(jwks_url, jwks_breaker).await?;
         let key = find_key(&jwks, kid.as_deref())
             .ok_or_else(|| "No matching JWK key found".to_string())?;
 
@@ -632,16 +635,23 @@ async fn validate_jwt(
     }
 }
 
-async fn fetch_jwks(url: &str) -> Result<serde_json::Value, String> {
+async fn fetch_jwks(
+    url: &str,
+    breaker: Option<&CircuitBreaker>,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::new();
-    let body = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("JWKS fetch failed: {}", e))?
-        .text()
-        .await
-        .map_err(|e| format!("JWKS body read failed: {}", e))?;
+    let body = match breaker {
+        Some(cb) => cb
+            .call(|| async { client.get(url).send().await })
+            .await
+            .map_err(|e| e.to_string())?,
+        None => client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("JWKS fetch failed: {}", e))?,
+    };
+    let body = body.text().await.map_err(|e| format!("JWKS body read failed: {}", e))?;
     serde_json::from_str(&body).map_err(|e| format!("JWKS parse failed: {}", e))
 }
 
@@ -702,10 +712,15 @@ pub fn build_mcp_router(
         .as_ref()
         .map(|_| reqwest::Client::new());
     let es_url = config.elasticsearch.as_ref().map(|c| c.url.clone());
+    let es_circuit_breaker = config
+        .elasticsearch
+        .as_ref()
+        .map(|_| CircuitBreaker::new(config.circuit_breakers.es.to_circuit_breaker_config()));
     let app_context = Arc::new(AppContext {
         pool,
         es_client,
         es_url,
+        es_circuit_breaker,
         permission_cache: Arc::new(tokio::sync::Mutex::new(
             crate::config::PermissionCache::new(),
         )),
@@ -718,10 +733,16 @@ pub fn build_mcp_router(
         .cloned()
         .map(Arc::new);
 
+    let jwks_circuit_breaker = auth_config
+        .as_ref()
+        .and_then(|a| a.jwks_url.as_ref())
+        .map(|_| CircuitBreaker::new(config.circuit_breakers.jwks.to_circuit_breaker_config()));
+
     let mcp_state = MCPState {
         auth_config,
         app_context: app_context.clone(),
         config: config.clone(),
+        jwks_circuit_breaker,
     };
 
     let service = StreamableHttpService::new(

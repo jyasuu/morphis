@@ -67,7 +67,7 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.data.material_featuresList[0].feature_name" == "Construction"
-jsonpath "$.data.material_featuresList" count == 6
+jsonpath "$.data.material_featuresList" count == 8
 
 # Feature attributes
 POST http://localhost:4000/graphql

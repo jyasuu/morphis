@@ -1,3 +1,4 @@
+mod circuit_breaker;
 mod config;
 mod db;
 mod mcp;
@@ -12,6 +13,7 @@ use axum::{
 use jsonwebtoken::{DecodingKey, Validation};
 use tower_http::cors::CorsLayer;
 
+use circuit_breaker::CircuitBreaker;
 use config::AuthConfig;
 use schema::Identity;
 
@@ -42,6 +44,11 @@ async fn main() -> anyhow::Result<()> {
         identity_mappings: vec![],
     });
 
+    let jwks_breaker = auth_config
+        .jwks_url
+        .as_ref()
+        .map(|_| CircuitBreaker::new(config.circuit_breakers.jwks.to_circuit_breaker_config()));
+
     let mut app = Router::new()
         .route("/graphql", get(graphql_handler).post(graphql_handler))
         .route("/playground", get(graphql_playground))
@@ -53,7 +60,8 @@ async fn main() -> anyhow::Result<()> {
         let auth = Arc::new(auth_config);
         app = app.layer(middleware::from_fn(move |req, next: middleware::Next| {
             let auth = auth.clone();
-            async move { auth_middleware(req, next, auth).await }
+            let jwks_breaker = jwks_breaker.clone();
+            async move { auth_middleware(req, next, auth, jwks_breaker).await }
         }));
     }
 
@@ -104,6 +112,7 @@ async fn auth_middleware(
     mut req: axum::http::Request<axum::body::Body>,
     next: middleware::Next,
     auth: Arc<AuthConfig>,
+    jwks_breaker: Option<CircuitBreaker>,
 ) -> Response {
     let auth_header = req
         .headers()
@@ -113,7 +122,7 @@ async fn auth_middleware(
         .map(|s| s.trim().to_string());
 
     if let Some(token) = auth_header {
-        let claims = validate_jwt(&token, &auth).await;
+        let claims = validate_jwt(&token, &auth, jwks_breaker.as_ref()).await;
         if let Ok(claims) = claims {
             let headers = req.headers_mut();
             for mapping in &auth.identity_mappings {
@@ -132,7 +141,11 @@ async fn auth_middleware(
     next.run(req).await
 }
 
-async fn validate_jwt(token: &str, auth: &AuthConfig) -> Result<serde_json::Value, String> {
+async fn validate_jwt(
+    token: &str,
+    auth: &AuthConfig,
+    jwks_breaker: Option<&CircuitBreaker>,
+) -> Result<serde_json::Value, String> {
     use jsonwebtoken::decode_header;
 
     let header = decode_header(token).map_err(|e| format!("JWT header decode failed: {}", e))?;
@@ -157,7 +170,7 @@ async fn validate_jwt(token: &str, auth: &AuthConfig) -> Result<serde_json::Valu
     }
 
     if let Some(ref jwks_url) = auth.jwks_url {
-        let keys = fetch_jwks_keys(jwks_url).await.map_err(|e| format!("JWKS fetch failed: {}", e))?;
+        let keys = fetch_jwks_keys(jwks_url, jwks_breaker).await.map_err(|e| format!("JWKS fetch failed: {}", e))?;
         for key in &keys {
             let mut validation = Validation::new(header.alg);
             if let Some(ref issuer) = auth.issuer {
@@ -178,13 +191,19 @@ async fn validate_jwt(token: &str, auth: &AuthConfig) -> Result<serde_json::Valu
     Err("No jwt_secret or jwks_url configured".into())
 }
 
-async fn fetch_jwks_keys(url: &str) -> Result<Vec<DecodingKey>, String> {
-    let body = reqwest::get(url)
-        .await
-        .map_err(|e| format!("JWKS fetch failed: {}", e))?
-        .text()
-        .await
-        .map_err(|e| format!("JWKS body read failed: {}", e))?;
+async fn fetch_jwks_keys(
+    url: &str,
+    breaker: Option<&CircuitBreaker>,
+) -> Result<Vec<DecodingKey>, String> {
+    let body = match breaker {
+        Some(cb) => {
+            cb.call(|| async { reqwest::get(url).await })
+                .await
+                .map_err(|e| e.to_string())?
+        }
+        None => reqwest::get(url).await.map_err(|e| format!("JWKS fetch failed: {}", e))?,
+    };
+    let body = body.text().await.map_err(|e| format!("JWKS body read failed: {}", e))?;
     let jwk_set: jsonwebtoken::jwk::JwkSet =
         serde_json::from_str(&body).map_err(|e| format!("JWKS parse failed: {}", e))?;
     let mut keys = Vec::new();

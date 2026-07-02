@@ -10,7 +10,16 @@ test.describe("Full CRUD flow", () => {
 
     const testMatNo = `E2E_${Date.now()}`;
 
-    // 1. Navigate to /materials/new
+    // 1. Login via credentials
+    await page.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
+    await page.waitForTimeout(1000);
+    await page.fill('input[name="username"]', "admin");
+    await page.fill('input[name="password"]', "admin");
+    await page.click('button[type="submit"]');
+    await page.waitForURL("http://localhost:3000/", { timeout: 10000 });
+    console.log("=== Logged in, URL:", page.url());
+
+    // 2. Navigate to /materials/new
     await page.goto("http://localhost:3000/materials/new", {
       waitUntil: "networkidle",
     });
@@ -24,7 +33,7 @@ test.describe("Full CRUD flow", () => {
     const body = await page.textContent("body");
     expect(body).toContain("New Materials");
 
-    // 2. Fill in the create form
+    // 3. Fill in the create form
     // Find inputs by their labels
     await page.fill('input[name="mat_no"]', testMatNo);
     await page.fill('input[name="name"]', "E2E Test Material");
@@ -42,6 +51,10 @@ test.describe("Full CRUD flow", () => {
 
     // Should redirect to /materials list
     expect(page.url()).toContain("/materials");
+
+    // Reload to ensure the list is fresh
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
 
     // 4. Verify the new material appears in the list
     const listBody = await page.textContent("body");
@@ -88,7 +101,7 @@ test.describe("Full CRUD flow", () => {
 
     // page.on('dialog') doesn't work great with confirm, let's use the API directly
     const deleteRes = await page.evaluate(async (matNo) => {
-      const res = await fetch("http://localhost:4000/graphql", {
+      const res = await fetch("/api/graphql", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

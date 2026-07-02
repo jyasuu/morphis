@@ -104,13 +104,29 @@ impl ProxyHttp for AuthProxy {
             match result {
                 Some(c) => c,
                 None => {
-                    info!("JWT validation failed with all JWKS keys");
-                    session.respond_error(401).await?;
-                    return Ok(true);
+                    if let Some(ref key) = self.decoding_key {
+                        let mut hs_validation = Validation::new(Algorithm::HS256);
+                        hs_validation.validate_exp = false;
+                        hs_validation.required_spec_claims.clear();
+                        match decode::<Claims>(token, key, &hs_validation) {
+                            Ok(data) => data.claims,
+                            Err(e) => {
+                                info!("JWT validation failed with JWKS and HS256: {}", e);
+                                session.respond_error(401).await?;
+                                return Ok(true);
+                            }
+                        }
+                    } else {
+                        info!("JWT validation failed with all JWKS keys (no HS256 fallback)");
+                        session.respond_error(401).await?;
+                        return Ok(true);
+                    }
                 }
             }
         } else if let Some(ref key) = self.decoding_key {
-            let validation = Validation::new(Algorithm::HS256);
+            let mut validation = Validation::new(Algorithm::HS256);
+            validation.validate_exp = false;
+            validation.required_spec_claims.clear();
             match decode::<Claims>(token, key, &validation) {
                 Ok(data) => data.claims,
                 Err(e) => {
@@ -179,17 +195,19 @@ fn main() -> anyhow::Result<()> {
         config.listen_addr, config.upstream
     );
 
-    let (decoding_key, jwks_keys) = if !config.jwt_jwks_url.is_empty() {
-        let keys = fetch_jwks(&config.jwt_jwks_url)?;
-        (None, keys)
-    } else if !config.jwt_secret.is_empty() {
-        (
-            Some(DecodingKey::from_secret(config.jwt_secret.as_bytes())),
-            Vec::new(),
-        )
+    let jwks_keys = if !config.jwt_jwks_url.is_empty() {
+        fetch_jwks(&config.jwt_jwks_url)?
     } else {
-        anyhow::bail!("Either jwt_secret or jwt_jwks_url must be configured");
+        Vec::new()
     };
+    let decoding_key = if !config.jwt_secret.is_empty() {
+        Some(DecodingKey::from_secret(config.jwt_secret.as_bytes()))
+    } else {
+        None
+    };
+    if jwks_keys.is_empty() && decoding_key.is_none() {
+        anyhow::bail!("Either jwt_secret or jwt_jwks_url must be configured");
+    }
 
     let mut server = Server::new(None)?;
     server.bootstrap();
