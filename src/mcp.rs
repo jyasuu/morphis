@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use axum::http::{header, HeaderValue, Request};
+use axum::http::{HeaderValue, Request, header};
 use axum::middleware;
 use axum::response::Response;
 use jsonwebtoken::{DecodingKey, Validation};
@@ -13,7 +13,7 @@ use rmcp::model::*;
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
-use rmcp::{tool, tool_router, ErrorData as McpError, RoleServer, ServerHandler};
+use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, tool, tool_router};
 use sqlx::{Pool, Postgres};
 
 use crate::circuit_breaker::CircuitBreaker;
@@ -104,7 +104,9 @@ impl MorphisMCPServer {
     /// Call with no args (or detail: false) for a lightweight overview — table names, prompts,
     /// relations, and search indexes. Call with detail: true to get full column info
     /// (types, prompts, examples, nullable, primary key flags).
-    #[tool(description = "Discover available tables, their prompts, relations, and search indexes. Always call this first. Pass detail:true to also get full column types, prompts, and examples for every table.")]
+    #[tool(
+        description = "Discover available tables, their prompts, relations, and search indexes. Always call this first. Pass detail:true to also get full column types, prompts, and examples for every table."
+    )]
     async fn discover_tables(
         &self,
         Parameters(args): Parameters<DiscoverTablesArgs>,
@@ -137,7 +139,8 @@ impl MorphisMCPServer {
                         .collect();
                     obj.insert("columns".into(), serde_json::Value::Array(cols));
                 } else {
-                    let col_names: Vec<String> = info.columns.iter().map(|c| c.name.clone()).collect();
+                    let col_names: Vec<String> =
+                        info.columns.iter().map(|c| c.name.clone()).collect();
                     obj.insert("columns".into(), serde_json::json!(col_names));
                 }
 
@@ -199,11 +202,12 @@ impl MorphisMCPServer {
             result.insert("query_guidance".into(), serde_json::json!(qg));
         }
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&result)
-                .map_err(|e| McpError::internal_error(
+            serde_json::to_string_pretty(&result).map_err(|e| {
+                McpError::internal_error(
                     format!("Failed to serialize response: {}", e),
                     None::<serde_json::Value>,
-                ))?
+                )
+            })?,
         )]))
     }
 
@@ -215,15 +219,14 @@ impl MorphisMCPServer {
     ///   { materials(id: "M001") { mat_no name sizes { size_code } colorways { hex } } }
     ///   { materialsList(filter: { status: "active" }) { mat_no name material_features { feature_name } } }
     ///   mutation { createMaterials(input: { mat_no: "NEW01", name: "New", status: "active" }) { mat_no } }
-    #[tool(description = "Execute any GraphQL query against the API. Supports nested relations, filtering, pagination, and mutations. Example: { materialsList(limit: 3) { mat_no name sizes { size_code } } }")]
+    #[tool(
+        description = "Execute any GraphQL query against the API. Supports nested relations, filtering, pagination, and mutations. Example: { materialsList(limit: 3) { mat_no name sizes { size_code } } }"
+    )]
     async fn graphql(
         &self,
         Parameters(args): Parameters<GraphqlArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let url = format!(
-            "http://localhost:{}/graphql",
-            self.config.server.port
-        );
+        let url = format!("http://localhost:{}/graphql", self.config.server.port);
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
@@ -238,17 +241,12 @@ impl MorphisMCPServer {
             body["variables"] = vars;
         }
 
-        let resp = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                McpError::internal_error(
-                    format!("GraphQL request failed: {}", e),
-                    None::<serde_json::Value>,
-                )
-            })?;
+        let resp = client.post(&url).json(&body).send().await.map_err(|e| {
+            McpError::internal_error(
+                format!("GraphQL request failed: {}", e),
+                None::<serde_json::Value>,
+            )
+        })?;
 
         let text = resp.text().await.map_err(|e| {
             McpError::internal_error(
@@ -261,7 +259,10 @@ impl MorphisMCPServer {
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
             if let Some(errors) = parsed.get("errors") {
                 return Err(McpError::internal_error(
-                    format!("GraphQL errors: {}", serde_json::to_string_pretty(errors).unwrap_or_default()),
+                    format!(
+                        "GraphQL errors: {}",
+                        serde_json::to_string_pretty(errors).unwrap_or_default()
+                    ),
                     None::<serde_json::Value>,
                 ));
             }
@@ -276,17 +277,16 @@ impl MorphisMCPServer {
     /// Use this to learn the exact query names, filter inputs, and relation fields before calling graphql.
     /// Returns JSON with query name, description, arguments (name/type/description), return type, and nested fields.
     /// Example response for a query: { "query": "materialsList", "arguments": [ { "name": "filter", "type": "MaterialsFilterInput" }, ... ], "return_type": "[Materials!]!", "nested_fields": ["mat_no", "name", "sizes", ...] }
-    #[tool(description = "Get the GraphQL schema: all query names, filter arguments, return types, and nested fields. Call this before graphql to learn the exact query syntax.")]
+    #[tool(
+        description = "Get the GraphQL schema: all query names, filter arguments, return types, and nested fields. Call this before graphql to learn the exact query syntax."
+    )]
     async fn graphql_schema(&self) -> Result<CallToolResult, McpError> {
         // Return cached result — schema is static at runtime
         if let Some(cached) = SCHEMA_CACHE.get() {
             return Ok(CallToolResult::success(vec![Content::text(cached.clone())]));
         }
 
-        let url = format!(
-            "http://localhost:{}/graphql",
-            self.config.server.port
-        );
+        let url = format!("http://localhost:{}/graphql", self.config.server.port);
         let introspect_query = r#"
         {
           __schema {
@@ -332,11 +332,14 @@ impl MorphisMCPServer {
             .cloned()
             .unwrap_or_default();
 
-        let mut type_fields: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut type_fields: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         if let Some(types) = data["data"]["__schema"]["types"].as_array() {
             for t in types {
                 let tname = t["name"].as_str().unwrap_or("");
-                if tname.starts_with("__") { continue; }
+                if tname.starts_with("__") {
+                    continue;
+                }
                 let names: Vec<String> = t["fields"]
                     .as_array()
                     .map(|arr| {
@@ -374,8 +377,14 @@ impl MorphisMCPServer {
                 })
                 .unwrap_or_default();
 
-            let type_name_clean = type_name.trim_end_matches('!').trim_start_matches('[').trim_end_matches(']').trim_end_matches('!').to_string();
-            let nested: Vec<String> = type_fields.get(&type_name_clean)
+            let type_name_clean = type_name
+                .trim_end_matches('!')
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .trim_end_matches('!')
+                .to_string();
+            let nested: Vec<String> = type_fields
+                .get(&type_name_clean)
                 .cloned()
                 .unwrap_or_default();
 
@@ -393,11 +402,12 @@ impl MorphisMCPServer {
             "note": "Use these query names and arguments in the graphql tool. Nested fields can be included in the selection set.",
         });
 
-        let schema_json = serde_json::to_string_pretty(&output)
-            .map_err(|e| McpError::internal_error(
+        let schema_json = serde_json::to_string_pretty(&output).map_err(|e| {
+            McpError::internal_error(
                 format!("Failed to format schema: {}", e),
                 None::<serde_json::Value>,
-            ))?;
+            )
+        })?;
 
         // Cache for subsequent calls — schema is static at runtime
         let _ = SCHEMA_CACHE.set(schema_json.clone());
@@ -410,11 +420,7 @@ impl ServerHandler for MorphisMCPServer {
     fn get_info(&self) -> ServerInfo {
         let cfg = self.config.mcp.as_ref();
         let instructions = cfg
-            .and_then(|m| {
-                m.prompts
-                    .as_ref()
-                    .and_then(|p| p.query_guidance.clone())
-            })
+            .and_then(|m| m.prompts.as_ref().and_then(|p| p.query_guidance.clone()))
             .unwrap_or_else(|| {
                 "Morphis Data MCP Server. Use discover_tables to explore available tables, \
                  graphql_schema to learn the GraphQL query syntax, \
@@ -524,15 +530,18 @@ async fn mcp_auth_middleware(
 
             match token {
                 Some(token) => {
-                    match validate_jwt(&token, auth_cfg, state.jwks_circuit_breaker.as_ref()).await {
+                    match validate_jwt(&token, auth_cfg, state.jwks_circuit_breaker.as_ref()).await
+                    {
                         Ok(claims) => {
                             let mut headers = std::collections::HashMap::new();
                             for mapping in &auth_cfg.identity_mappings {
                                 if let Some(val) = claims.get(&mapping.claim) {
                                     if let Some(s) = val.as_str() {
-                                        headers.insert(mapping.header.to_lowercase(), s.to_string());
+                                        headers
+                                            .insert(mapping.header.to_lowercase(), s.to_string());
                                     } else {
-                                        headers.insert(mapping.header.to_lowercase(), val.to_string());
+                                        headers
+                                            .insert(mapping.header.to_lowercase(), val.to_string());
                                     }
                                 }
                             }
@@ -651,14 +660,14 @@ async fn fetch_jwks(
             .await
             .map_err(|e| format!("JWKS fetch failed: {}", e))?,
     };
-    let body = body.text().await.map_err(|e| format!("JWKS body read failed: {}", e))?;
+    let body = body
+        .text()
+        .await
+        .map_err(|e| format!("JWKS body read failed: {}", e))?;
     serde_json::from_str(&body).map_err(|e| format!("JWKS parse failed: {}", e))
 }
 
-fn find_key<'a>(
-    jwks: &'a serde_json::Value,
-    kid: Option<&str>,
-) -> Option<&'a serde_json::Value> {
+fn find_key<'a>(jwks: &'a serde_json::Value, kid: Option<&str>) -> Option<&'a serde_json::Value> {
     let keys = jwks["keys"].as_array()?;
     if let Some(kid) = kid {
         keys.iter().find(|k| k["kid"].as_str() == Some(kid))
@@ -667,25 +676,25 @@ fn find_key<'a>(
     }
 }
 
-fn jwk_to_decoding_key(
-    jwk: &serde_json::Value,
-) -> Result<DecodingKey, String> {
+fn jwk_to_decoding_key(jwk: &serde_json::Value) -> Result<DecodingKey, String> {
     let kty = jwk["kty"].as_str().unwrap_or("");
     match kty {
         "RSA" => {
             let n = jwk["n"].as_str().ok_or("Missing RSA modulus 'n'")?;
             let e = jwk["e"].as_str().ok_or("Missing RSA exponent 'e'")?;
-            Ok(DecodingKey::from_rsa_components(n, e).map_err(|e| format!("RSA key error: {}", e))?)
+            Ok(DecodingKey::from_rsa_components(n, e)
+                .map_err(|e| format!("RSA key error: {}", e))?)
         }
         "EC" => {
             let x = jwk["x"].as_str().ok_or("Missing EC x")?;
             let y = jwk["y"].as_str().ok_or("Missing EC y")?;
-            Ok(DecodingKey::from_ec_components(x, y).map_err(|e| format!("EC key error: {}", e))?)
+            Ok(
+                DecodingKey::from_ec_components(x, y)
+                    .map_err(|e| format!("EC key error: {}", e))?,
+            )
         }
         "oct" => {
-            let k = jwk["k"]
-                .as_str()
-                .ok_or("Missing symmetric key 'k'")?;
+            let k = jwk["k"].as_str().ok_or("Missing symmetric key 'k'")?;
             use base64::Engine;
             let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
                 .decode(k)
@@ -698,10 +707,7 @@ fn jwk_to_decoding_key(
 
 // ── Axum Router Builder ────────────────────────────────────────
 
-pub fn build_mcp_router(
-    config: Arc<Config>,
-    pool: Pool<Postgres>,
-) -> Option<axum::Router> {
+pub fn build_mcp_router(config: Arc<Config>, pool: Pool<Postgres>) -> Option<axum::Router> {
     let mcp_cfg = config.mcp.as_ref()?;
     if !mcp_cfg.enabled {
         return None;
@@ -758,9 +764,13 @@ pub fn build_mcp_router(
             .with_allowed_hosts(["localhost", "127.0.0.1", "0.0.0.0", "auth-proxy"]),
     );
 
-    let router = axum::Router::new()
-        .nest_service("/mcp", service)
-        .layer(middleware::from_fn_with_state(mcp_state, mcp_auth_middleware));
+    let router =
+        axum::Router::new()
+            .nest_service("/mcp", service)
+            .layer(middleware::from_fn_with_state(
+                mcp_state,
+                mcp_auth_middleware,
+            ));
 
     tracing::info!("MCP server enabled at /mcp (Streamable HTTP)");
 
@@ -791,17 +801,21 @@ fn extract_type_name(field: &serde_json::Value) -> String {
         let inner_name = resolve_named_type(&t["ofType"]);
         format!("[{}]", inner_name)
     } else {
-        t.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string()
+        t.get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("unknown")
+            .to_string()
     }
 }
 
 fn resolve_named_type(t: &serde_json::Value) -> String {
     if let Some(name) = t["name"].as_str() {
-        if !name.is_empty() { return name.to_string(); }
+        if !name.is_empty() {
+            return name.to_string();
+        }
     }
     if let Some(of) = t["ofType"].as_object() {
         return resolve_named_type(&serde_json::Value::Object(of.clone()));
     }
     "unknown".to_string()
 }
-

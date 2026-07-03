@@ -136,7 +136,11 @@ impl CircuitBreaker {
 mod tests {
     use super::*;
 
-    fn cfg(failure_threshold: u64, reset_timeout_secs: u64, half_open_max: u64) -> CircuitBreakerConfig {
+    fn cfg(
+        failure_threshold: u64,
+        reset_timeout_secs: u64,
+        half_open_max: u64,
+    ) -> CircuitBreakerConfig {
         CircuitBreakerConfig {
             failure_threshold,
             reset_timeout: Duration::from_secs(reset_timeout_secs),
@@ -144,8 +148,12 @@ mod tests {
         }
     }
 
-    fn ok() -> Result<(), String> { Ok(()) }
-    fn err_msg() -> Result<(), String> { Err("err".to_string()) }
+    fn ok() -> Result<(), String> {
+        Ok(())
+    }
+    fn err_msg() -> Result<(), String> {
+        Err("err".to_string())
+    }
 
     #[tokio::test]
     async fn initial_state_allows_calls() {
@@ -194,7 +202,10 @@ mod tests {
         cb.call(|| async { err_msg() }).await.ok();
         cb.call(|| async { err_msg() }).await.ok();
 
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
 
         tokio::time::advance(Duration::from_secs(11)).await;
 
@@ -212,8 +223,14 @@ mod tests {
 
         tokio::time::advance(Duration::from_secs(11)).await;
 
-        assert!(matches!(cb.call(|| async { err_msg() }).await, Err(Error::Inner(_))));
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { err_msg() }).await,
+            Err(Error::Inner(_))
+        ));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
     }
 
     #[tokio::test]
@@ -257,7 +274,10 @@ mod tests {
 
         ready_rx.await.unwrap();
 
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
 
         drop(hold_tx);
     }
@@ -270,7 +290,10 @@ mod tests {
         cb.call(|| async { err_msg() }).await.ok();
         cb.call(|| async { err_msg() }).await.ok();
 
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
 
         tokio::time::advance(Duration::from_secs(11)).await;
 
@@ -281,8 +304,14 @@ mod tests {
     async fn threshold_one_opens_on_first_failure() {
         let cb = CircuitBreaker::new(cfg(1, 30, 1));
 
-        assert!(matches!(cb.call(|| async { err_msg() }).await, Err(Error::Inner(_))));
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { err_msg() }).await,
+            Err(Error::Inner(_))
+        ));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
     }
 
     #[tokio::test]
@@ -295,13 +324,22 @@ mod tests {
 
         tokio::time::advance(Duration::from_secs(11)).await;
 
-        assert!(matches!(cb.call(|| async { err_msg() }).await, Err(Error::Inner(_))));
+        assert!(matches!(
+            cb.call(|| async { err_msg() }).await,
+            Err(Error::Inner(_))
+        ));
 
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
 
         tokio::time::advance(Duration::from_secs(9)).await;
 
-        assert!(matches!(cb.call(|| async { ok() }).await, Err(Error::CircuitOpen)));
+        assert!(matches!(
+            cb.call(|| async { ok() }).await,
+            Err(Error::CircuitOpen)
+        ));
 
         tokio::time::advance(Duration::from_secs(2)).await;
 
@@ -315,9 +353,9 @@ mod tests {
         let mut handles = Vec::new();
         for _ in 0..20 {
             let cb = cb.clone();
-            handles.push(tokio::spawn(async move {
-                cb.call(|| async { ok() }).await
-            }));
+            handles.push(tokio::spawn(
+                async move { cb.call(|| async { ok() }).await },
+            ));
         }
 
         for h in handles {
