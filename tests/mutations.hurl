@@ -83,3 +83,24 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.data.materials" == null
+
+# Error: duplicate PK should fail
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "mutation { createMaterials(input: { mat_no: \"M001\", name: \"Duplicate\", status: \"active\" }) { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data" == null
+jsonpath "$.errors" count > 0
+
+# Error: update non-existent ID should return null
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "mutation { updateMaterials(id: \"NONEXISTENT\", input: { name: \"Ghost\" }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data" == null

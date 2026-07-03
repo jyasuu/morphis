@@ -755,7 +755,7 @@ pub fn build_mcp_router(
         StreamableHttpServerConfig::default()
             .with_stateful_mode(true)
             .with_sse_keep_alive(Some(Duration::from_secs(15)))
-            .with_allowed_hosts(["localhost", "127.0.0.1", "0.0.0.0"]),
+            .with_allowed_hosts(["localhost", "127.0.0.1", "0.0.0.0", "auth-proxy"]),
     );
 
     let router = axum::Router::new()
