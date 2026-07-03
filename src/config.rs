@@ -35,6 +35,7 @@ pub struct SearchIndexConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct SearchJoinConfig {
     pub name: String,
     pub index_field: String,

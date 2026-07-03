@@ -809,11 +809,10 @@ fn extract_type_name(field: &serde_json::Value) -> String {
 }
 
 fn resolve_named_type(t: &serde_json::Value) -> String {
-    if let Some(name) = t["name"].as_str() {
-        if !name.is_empty() {
+    if let Some(name) = t["name"].as_str()
+        && !name.is_empty() {
             return name.to_string();
         }
-    }
     if let Some(of) = t["ofType"].as_object() {
         return resolve_named_type(&serde_json::Value::Object(of.clone()));
     }

@@ -124,15 +124,12 @@ async fn auth_middleware(
         if let Ok(claims) = claims {
             let headers = req.headers_mut();
             for mapping in &auth.identity_mappings {
-                if let Some(val) = claims.get(&mapping.claim).and_then(|v| v.as_str()) {
-                    if let Ok(name) =
+                if let Some(val) = claims.get(&mapping.claim).and_then(|v| v.as_str())
+                    && let Ok(name) =
                         axum::http::header::HeaderName::from_bytes(mapping.header.as_bytes())
-                    {
-                        if let Ok(value) = axum::http::HeaderValue::from_str(val) {
+                        && let Ok(value) = axum::http::HeaderValue::from_str(val) {
                             headers.insert(name, value);
                         }
-                    }
-                }
             }
         }
     }
