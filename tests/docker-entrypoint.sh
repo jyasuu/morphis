@@ -127,9 +127,17 @@ PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
   INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
     ('tenant-alpha', 'tenant-alpha', 'test'),
     ('tenant-beta', 'tenant-beta', 'test');
+  INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
+    ('user-a', '-', 'us'),
+    ('user-a', '-', 'eu'),
+    ('user-b', '-', 'us');
+  INSERT INTO protected_data (id, name, region) VALUES
+    ('PDATA-001', 'Protected US', 'us'),
+    ('PDATA-002', 'Protected EU', 'eu'),
+    ('PDATA-003', 'Protected US 2', 'us');
 " > /dev/null 2>&1
 
-# Run RLS tests last (they create and clean up their own data)
+# Run RLS tests (data seeded above via SQL)
 for f in row_filters.hurl; do
   name="$(basename "$f")"
   echo "--- $name ---"
@@ -181,12 +189,11 @@ for f in mcp.hurl; do
   echo ""
 done
 
-# Re-seed shared state for downstream consumers (frontend tests, etc.)
-# row_filters.hurl cleans up ALL user_permissions rows, so we re-add admin.
+# Clean up test data and re-seed shared state for downstream consumers (frontend tests, etc.)
 PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  TRUNCATE user_permissions, protected_data RESTART IDENTITY CASCADE;
   INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
-    ('admin', 'default', 'main')
-  ON CONFLICT DO NOTHING;
+    ('admin', 'default', 'main');
 " > /dev/null 2>&1
 
 if [ "$FAIL" -eq 0 ]; then

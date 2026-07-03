@@ -262,6 +262,11 @@ tables:
   user_permissions:
     table: user_permissions
     primary_key: [id]
+    crud:
+      create: false
+      update: false
+      delete: false
+      read: true
     columns:
       - name: id
         type: int
@@ -281,6 +286,11 @@ tables:
   protected_data:
     table: protected_data
     primary_key: [id]
+    crud:
+      create: false
+      update: false
+      delete: false
+      read: true
     columns:
       - name: id
         type: string
