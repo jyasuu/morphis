@@ -7,9 +7,7 @@ mod schema;
 use std::sync::Arc;
 
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{
-    Router, extract::Extension, middleware, response::Response, routing::get,
-};
+use axum::{Router, extract::Extension, middleware, response::Response, routing::get};
 use jsonwebtoken::{DecodingKey, Validation};
 use tower_http::cors::CorsLayer;
 
@@ -126,14 +124,12 @@ async fn auth_middleware(
         if let Ok(claims) = claims {
             let headers = req.headers_mut();
             for mapping in &auth.identity_mappings {
-                if let Some(val) = claims.get(&mapping.claim).and_then(|v| v.as_str()) {
-                    if let Ok(name) = axum::http::header::HeaderName::from_bytes(mapping.header.as_bytes())
-                    {
-                        if let Ok(value) = axum::http::HeaderValue::from_str(val) {
+                if let Some(val) = claims.get(&mapping.claim).and_then(|v| v.as_str())
+                    && let Ok(name) =
+                        axum::http::header::HeaderName::from_bytes(mapping.header.as_bytes())
+                        && let Ok(value) = axum::http::HeaderValue::from_str(val) {
                             headers.insert(name, value);
                         }
-                    }
-                }
             }
         }
     }
@@ -170,7 +166,9 @@ async fn validate_jwt(
     }
 
     if let Some(ref jwks_url) = auth.jwks_url {
-        let keys = fetch_jwks_keys(jwks_url, jwks_breaker).await.map_err(|e| format!("JWKS fetch failed: {}", e))?;
+        let keys = fetch_jwks_keys(jwks_url, jwks_breaker)
+            .await
+            .map_err(|e| format!("JWKS fetch failed: {}", e))?;
         for key in &keys {
             let mut validation = Validation::new(header.alg);
             if let Some(ref issuer) = auth.issuer {
@@ -196,14 +194,18 @@ async fn fetch_jwks_keys(
     breaker: Option<&CircuitBreaker>,
 ) -> Result<Vec<DecodingKey>, String> {
     let body = match breaker {
-        Some(cb) => {
-            cb.call(|| async { reqwest::get(url).await })
-                .await
-                .map_err(|e| e.to_string())?
-        }
-        None => reqwest::get(url).await.map_err(|e| format!("JWKS fetch failed: {}", e))?,
+        Some(cb) => cb
+            .call(|| async { reqwest::get(url).await })
+            .await
+            .map_err(|e| e.to_string())?,
+        None => reqwest::get(url)
+            .await
+            .map_err(|e| format!("JWKS fetch failed: {}", e))?,
     };
-    let body = body.text().await.map_err(|e| format!("JWKS body read failed: {}", e))?;
+    let body = body
+        .text()
+        .await
+        .map_err(|e| format!("JWKS body read failed: {}", e))?;
     let jwk_set: jsonwebtoken::jwk::JwkSet =
         serde_json::from_str(&body).map_err(|e| format!("JWKS parse failed: {}", e))?;
     let mut keys = Vec::new();

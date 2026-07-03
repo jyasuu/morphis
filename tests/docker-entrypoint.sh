@@ -127,9 +127,17 @@ PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
   INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
     ('tenant-alpha', 'tenant-alpha', 'test'),
     ('tenant-beta', 'tenant-beta', 'test');
+  INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
+    ('user-a', '-', 'us'),
+    ('user-a', '-', 'eu'),
+    ('user-b', '-', 'us');
+  INSERT INTO protected_data (id, name, region) VALUES
+    ('PDATA-001', 'Protected US', 'us'),
+    ('PDATA-002', 'Protected EU', 'eu'),
+    ('PDATA-003', 'Protected US 2', 'us');
 " > /dev/null 2>&1
 
-# Run RLS tests last (they create and clean up their own data)
+# Run RLS tests (data seeded above via SQL)
 for f in row_filters.hurl; do
   name="$(basename "$f")"
   echo "--- $name ---"
@@ -155,12 +163,37 @@ for f in auth_proxy.hurl; do
   echo ""
 done
 
-# Re-seed shared state for downstream consumers (frontend tests, etc.)
-# row_filters.hurl cleans up ALL user_permissions rows, so we re-add admin.
+echo "=== Generating MCP JWT ==="
+MCP_SECRET="morphis-mcp-secret-change-in-production"
+MCP_TOKEN=$(python3 -c "
+import hmac, hashlib, base64, json, time
+secret = b'$MCP_SECRET'
+payload = {'sub':'testuser','tenant_id':'default','role':'admin','exp':int(time.time())+3600}
+header = base64.urlsafe_b64encode(json.dumps({'alg':'HS256','typ':'JWT'}).encode()).rstrip(b'=').decode()
+payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
+sig = base64.urlsafe_b64encode(hmac.new(secret, f'{header}.{payload_b64}'.encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
+print(f'{header}.{payload_b64}.{sig}')
+")
+echo "  got MCP token: ${MCP_TOKEN:0:20}..."
+
+echo "=== MCP endpoint tests ==="
+for f in mcp.hurl; do
+  name="$(basename "$f")"
+  echo "--- $name ---"
+  if hurl --test --variable "MCP_TOKEN=$MCP_TOKEN" "$f"; then
+    echo "  PASS"
+  else
+    echo "  FAIL"
+    FAIL=1
+  fi
+  echo ""
+done
+
+# Clean up test data and re-seed shared state for downstream consumers (frontend tests, etc.)
 PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  TRUNCATE user_permissions, protected_data RESTART IDENTITY CASCADE;
   INSERT INTO user_permissions (user_id, tenant_id, region) VALUES
-    ('admin', 'default', 'main')
-  ON CONFLICT DO NOTHING;
+    ('admin', 'default', 'main');
 " > /dev/null 2>&1
 
 if [ "$FAIL" -eq 0 ]; then

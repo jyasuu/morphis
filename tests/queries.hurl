@@ -79,3 +79,55 @@ HTTP 200
 [Asserts]
 jsonpath "$.data.feature_attributesList[0].attr_name" == "weave_type"
 jsonpath "$.data.feature_attributesList[0].attr_value" == "plain"
+
+# List query with limit
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(limit: 2) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 2
+
+# List query with limit + offset (page 2)
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(limit: 2, offset: 2) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 1
+jsonpath "$.data.materialsList[0].mat_no" == "M003"
+
+# Offset beyond total returns empty
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(limit: 10, offset: 100) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 0
+
+# Nullable field: feature with null description
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ material_features(id: 5) { feature_name description } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.material_features.feature_name" == "Certification"
+jsonpath "$.data.material_features.description" == null
+
+# GraphQL introspection
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ __schema { queryType { name } types { name } } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.__schema.queryType.name" == "Query"

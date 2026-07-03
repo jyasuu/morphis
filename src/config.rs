@@ -35,6 +35,7 @@ pub struct SearchIndexConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct SearchJoinConfig {
     pub name: String,
     pub index_field: String,
@@ -141,9 +142,15 @@ pub struct CircuitBreakerInstanceConfig {
     pub half_open_max_requests: u64,
 }
 
-fn default_failure_threshold() -> u64 { 5 }
-fn default_reset_timeout_secs() -> u64 { 30 }
-fn default_half_open_max() -> u64 { 3 }
+fn default_failure_threshold() -> u64 {
+    5
+}
+fn default_reset_timeout_secs() -> u64 {
+    30
+}
+fn default_half_open_max() -> u64 {
+    3
+}
 
 impl CircuitBreakerInstanceConfig {
     pub fn to_circuit_breaker_config(&self) -> crate::circuit_breaker::CircuitBreakerConfig {

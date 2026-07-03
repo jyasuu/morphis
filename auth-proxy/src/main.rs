@@ -2,8 +2,8 @@ mod config;
 
 use std::sync::Arc;
 
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use jsonwebtoken::jwk::{JwkSet, PublicKeyUse};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use pingora::proxy::{ProxyHttp, Session};
 use pingora::server::Server;
 use pingora::upstreams::peer::HttpPeer;
@@ -158,12 +158,14 @@ fn fetch_jwks(url: &str) -> anyhow::Result<Vec<DecodingKey>> {
     let mut keys = Vec::new();
     for jwk in &jwk_set.keys {
         // Only use signing keys, skip encryption keys
-        if let Some(ref use_val) = jwk.common.public_key_use {
-            if !matches!(use_val, PublicKeyUse::Signature) {
-                info!("Skipping JWK (kid: {:?}) with non-signature use", jwk.common.key_id);
+        if let Some(ref use_val) = jwk.common.public_key_use
+            && !matches!(use_val, PublicKeyUse::Signature) {
+                info!(
+                    "Skipping JWK (kid: {:?}) with non-signature use",
+                    jwk.common.key_id
+                );
                 continue;
             }
-        }
         match DecodingKey::from_jwk(jwk) {
             Ok(key) => keys.push(key),
             Err(e) => {

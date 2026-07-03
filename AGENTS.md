@@ -106,7 +106,8 @@ Individual scripts (fine-grained):
 ./scripts/integration-check.sh --skip-build  # reuse existing images
 
 # Frontend only (Playwright — needs Docker services up + Keycloak setup)
-./scripts/run-frontend-tests.sh
+./scripts/run-frontend-tests.sh              # OIDC auth-chain tests (default)
+./scripts/run-frontend-tests.sh --credentials # AUTH_DISABLED mode (crud + entities)
 ```
 
 Manual step-by-step:
@@ -184,11 +185,12 @@ Key files in `scripts/`:
 |---|---|
 | `tests/health.hurl` | App health endpoint |
 | `tests/mutations.hurl` | CRUD (creates orphan `HL` size — cleaned up after) |
-| `tests/queries.hurl` | List/single queries on seed data |
+| `tests/queries.hurl` | List/single queries on seed data — includes pagination, null field, introspection |
 | `tests/relations.hurl` | has_many, belongs_to, deep nesting |
 | `tests/search.hurl` | ES search queries |
 | `tests/row_filters.hurl` | Column RLS + subquery RLS + RBAC |
 | `tests/auth_proxy.hurl` | Keycloak JWT auth through auth-proxy |
+| `tests/mcp.hurl` | MCP endpoint reachability + JWT auth (through auth-proxy and direct) |
 
 ### Test execution order (entrypoint manages side effects)
-health → mutations → **cleanup** → queries → relations → search → row_filters → auth_proxy
+health → mutations → **cleanup** → queries → relations → search → row_filters → auth_proxy → mcp
