@@ -49,12 +49,14 @@ echo "=== Building tests:local ==="
 mkdir -p "$TMP_DIR/tests"
 cp "$SCRIPT_DIR/seed_es.sh" "$TMP_DIR/tests/"
 cp -r "$SCRIPT_DIR/tests/"* "$TMP_DIR/tests/"
+cp -r "$SCRIPT_DIR/benchmark/" "$TMP_DIR/tests/benchmark/"
 cat > "$TMP_DIR/tests/Dockerfile" << 'DOCKERFILE'
 FROM ghcr.io/orange-opensource/hurl:latest
 USER root
 RUN apk add --no-cache curl bash jq python3 postgresql-client
 COPY . /tests/
-RUN chmod +x /tests/docker-entrypoint.sh
+COPY benchmark/ /benchmark/
+RUN chmod +x /tests/docker-entrypoint.sh /benchmark/run.sh
 ENTRYPOINT ["/tests/docker-entrypoint.sh"]
 DOCKERFILE
 docker build -t tests:local "$TMP_DIR/tests"

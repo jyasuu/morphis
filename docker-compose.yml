@@ -113,3 +113,24 @@ services:
         condition: service_healthy
     profiles:
       - tests
+
+  benchmark:
+    image: tests:local
+    entrypoint: ["/benchmark/run.sh"]
+    depends_on:
+      app:
+        condition: service_started
+      es:
+        condition: service_healthy
+      pgx-listen:
+        condition: service_started
+    environment:
+      DATA_SIZE: "${BENCH_DATA_SIZE:-500}"
+      ITERATIONS: "${BENCH_ITERATIONS:-30}"
+      WARMUP: "${BENCH_WARMUP:-3}"
+      ES_HOST: es
+      ES_PORT: "9200"
+      ES_USER: elastic
+      ES_PASS: morphis_es_pass
+    profiles:
+      - benchmark
