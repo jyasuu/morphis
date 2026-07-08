@@ -2,6 +2,8 @@
 
 Found during audit of `pg_x` for use in the morphis project (GraphQL → pg_notify → pg_x → Elasticsearch pipeline).
 
+> **UPDATE (Jul 8, 2026):** All 7 issues below were implemented upstream in commit [`7244c42`](https://github.com/jyasuu/pg_x/commit/7244c42b1f9702558f9181aeaadda1784ac053aa) (feat: implement pg_x audit optimizations), plus 2 follow-up commits. The report is preserved here for reference.
+
 ---
 
 ## 1. Single-doc ES indexing (high impact)
@@ -171,12 +173,14 @@ channel_full_behavior = "block"  # or "drop_oldest" | "grow"
 
 ## Summary
 
-| Priority | Issue | Expected Gain |
-|---|---|---|
-| 🔴 High | ES Bulk API | 10-50x throughput |
-| 🔴 High | N+1 without batch_by | 10-100x on nested queries |
-| 🟡 Medium | Sequential sibling resolution | 2-5x wall time on deep queries |
-| 🟡 Medium | Single PG connection | 2-3x on concurrent resolvers |
-| 🟡 Medium | Cross-message caching | 2-5x on hot keys |
-| 🟢 Low | Prepared statements | 10-20% CPU reduction |
-| 🟢 Low | Configurable backpressure | Operational safety |
+| Priority | Issue | Expected Gain | Status |
+|---|---|---|---|
+| 🔴 High | ES Bulk API | 10-50x throughput | ✅ Fixed in `7244c42` |
+| 🔴 High | N+1 without batch_by | 10-100x on nested queries | ✅ Fixed in `7244c42` |
+| 🟡 Medium | Sequential sibling resolution | 2-5x wall time on deep queries | ✅ Fixed in `7244c42` |
+| 🟡 Medium | Single PG connection | 2-3x on concurrent resolvers | ✅ Fixed in `7244c42` |
+| 🟡 Medium | Cross-message caching | 2-5x on hot keys | ✅ Fixed in `7244c42` |
+| 🟢 Low | Prepared statements | 10-20% CPU reduction | ✅ Fixed in `7244c42` |
+| 🟢 Low | Configurable backpressure | Operational safety | ✅ Fixed in `7244c42` |
+
+All 7 items implemented in a single upstream commit. The morphis project should consider upgrading its `pgx-listen` service image to pick up these optimizations.
