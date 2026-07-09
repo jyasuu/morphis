@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.DS_Store
+.eslintrc*
+postcss.config.mjs
+eslint.config.mjs
+next-env.d.ts
+playwright.config.ts
+tests/
+scripts/
+test-results/
