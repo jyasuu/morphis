@@ -37,6 +37,9 @@ services:
 
   app:
     image: morphis:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       MORPHIS_CONFIG: /app/config.yaml
     depends_on:
@@ -66,6 +69,9 @@ services:
 
   auth-proxy:
     image: auth-proxy:local
+    build:
+      context: .
+      dockerfile: auth-proxy/Dockerfile
     ports:
       - "9080:9080"
     environment:
@@ -106,6 +112,9 @@ services:
 
   tests:
     image: tests:local
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
     depends_on:
       app:
         condition: service_started
@@ -116,6 +125,9 @@ services:
 
   benchmark:
     image: tests:local
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
     entrypoint: ["/benchmark/run.sh"]
     depends_on:
       app:
