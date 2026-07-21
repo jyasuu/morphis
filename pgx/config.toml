@@ -1,3 +1,14 @@
+default = "morphis"
+
+[connections.morphis]
+url = "postgres://postgres:postgres@localhost:5432/morphis"
+
+[connections.morphis.consume]
+source = { type = "rabbitmq", amqp_url = "amqp://guest:guest@rabbitmq:5672/%2F", queue = "pgx-events" }
+sink = { type = "elasticsearch", url = "http://elastic:morphis_es_pass@es:9200", index = "materials", id_field = "mat_no" }
+query_mode = "contract"
+on_error = "lenient"
+
 [resolvers.material]
 sql = "SELECT mat_no, name, status, tenant_id FROM materials WHERE mat_no = $1"
 param = "mat_no"

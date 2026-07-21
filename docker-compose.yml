@@ -84,6 +84,25 @@ services:
     volumes:
       - ./auth-proxy/config.docker.yaml:/app/config.yaml
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  rabbitmq-setup:
+    image: rabbitmq:3-management
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "rabbitmqadmin -H rabbitmq declare exchange name=pgx type=topic durable=true && rabbitmqadmin -H rabbitmq declare queue name=pgx-events durable=true && rabbitmqadmin -H rabbitmq declare binding source=pgx destination=pgx-events routing_key='pgx.notify' && echo 'RabbitMQ exchange and queue ready'"]
+    restart: "no"
+
   pgx-listen:
     image: ghcr.io/jyasuu/pg_x:main
     command:
@@ -108,6 +127,71 @@ services:
         condition: service_healthy
       es:
         condition: service_healthy
+    restart: unless-stopped
+
+  pgx-listen-rabbitmq:
+    image: ghcr.io/jyasuu/pg_x:main
+    command:
+      - "listen"
+      - "-C"
+      - "materials_channel"
+      - "rabbitmq"
+      - "--amqp-url"
+      - "amqp://guest:guest@rabbitmq:5672/%2F"
+      - "--exchange"
+      - "pgx"
+      - "--routing-key"
+      - "pgx.notify"
+      - "--mode"
+      - "contract"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/morphis
+    volumes:
+      - ./pgx/config.toml:/root/.pgx/config.toml
+      - ./pgx/schema:/root/.pgx/schema
+      - ./pgx/queries:/root/.pgx/queries
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  pgx-consume:
+    image: ghcr.io/jyasuu/pg_x:main
+    command:
+      - "consume"
+      - "--source"
+      - "rabbitmq"
+      - "--amqp-url"
+      - "amqp://guest:guest@rabbitmq:5672/%2F"
+      - "--queue"
+      - "pgx-events"
+      - "--sink"
+      - "elasticsearch"
+      - "--es-url"
+      - "http://elastic:morphis_es_pass@es:9200"
+      - "--index"
+      - "materials"
+      - "--id-field"
+      - "mat_no"
+      - "--query"
+      - "material"
+      - "--on-error"
+      - "lenient"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/morphis
+    volumes:
+      - ./pgx/config.toml:/root/.pgx/config.toml
+      - ./pgx/schema:/root/.pgx/schema
+      - ./pgx/queries:/root/.pgx/queries
+    depends_on:
+      db:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   tests:
