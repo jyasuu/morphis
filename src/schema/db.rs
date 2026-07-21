@@ -48,6 +48,35 @@ pub(crate) async fn fetch_many(
     }
 }
 
+pub(crate) async fn fetch_joined_rows_batch(
+    pool: &Pool<Postgres>,
+    sql: &str,
+    keys: &[String],
+) -> Result<Vec<serde_json::Value>, async_graphql::Error> {
+    if keys.is_empty() {
+        return Ok(vec![]);
+    }
+    let query = sqlx::query(sql).bind(keys);
+    match query.fetch_optional(pool).await {
+        Ok(Some(row)) => {
+            let json_str: String = row
+                .try_get(0)
+                .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+            let val: serde_json::Value =
+                serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Array(vec![]));
+            match val {
+                serde_json::Value::Array(arr) => Ok(arr),
+                _ => Ok(vec![val]),
+            }
+        }
+        Ok(None) => Ok(vec![]),
+        Err(e) => Err(async_graphql::Error::new(format!(
+            "batch fetch query failed: {}",
+            e
+        ))),
+    }
+}
+
 pub(crate) async fn fetch_joined_rows(
     pool: &Pool<Postgres>,
     sql: &str,

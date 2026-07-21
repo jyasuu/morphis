@@ -37,6 +37,9 @@ services:
 
   app:
     image: morphis:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       MORPHIS_CONFIG: /app/config.yaml
     depends_on:
@@ -66,6 +69,9 @@ services:
 
   auth-proxy:
     image: auth-proxy:local
+    build:
+      context: .
+      dockerfile: auth-proxy/Dockerfile
     ports:
       - "9080:9080"
     environment:
@@ -106,6 +112,9 @@ services:
 
   tests:
     image: tests:local
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
     depends_on:
       app:
         condition: service_started
@@ -113,3 +122,27 @@ services:
         condition: service_healthy
     profiles:
       - tests
+
+  benchmark:
+    image: tests:local
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    entrypoint: ["/benchmark/run.sh"]
+    depends_on:
+      app:
+        condition: service_started
+      es:
+        condition: service_healthy
+      pgx-listen:
+        condition: service_started
+    environment:
+      DATA_SIZE: "${BENCH_DATA_SIZE:-500}"
+      ITERATIONS: "${BENCH_ITERATIONS:-30}"
+      WARMUP: "${BENCH_WARMUP:-3}"
+      ES_HOST: es
+      ES_PORT: "9200"
+      ES_USER: elastic
+      ES_PASS: morphis_es_pass
+    profiles:
+      - benchmark

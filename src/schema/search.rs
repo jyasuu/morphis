@@ -1,3 +1,5 @@
+use std::{collections::HashMap, future::Future, pin::Pin};
+
 use async_graphql::dynamic::{
     Field, FieldFuture, FieldValue, InputValue, Object, TypeRef, ValueAccessor,
 };
@@ -136,15 +138,16 @@ async fn es_search(
 
     let hits = body["hits"]["hits"].as_array().cloned().unwrap_or_default();
 
-    let mut results = Vec::new();
-    for hit in hits {
-        let source = hit
-            .get("_source")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        let enriched = es_enrich_source(source, index_cfg, &app_ctx.pool).await;
-        results.push(enriched);
-    }
+    let mut results: Vec<serde_json::Value> = hits
+        .into_iter()
+        .map(|hit| {
+            hit.get("_source")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null)
+        })
+        .collect();
+
+    es_batch_enrich(&app_ctx.pool, &mut results, &index_cfg.join_fields).await?;
     Ok(results)
 }
 
@@ -278,55 +281,74 @@ fn build_es_filter(
     must
 }
 
-async fn es_enrich_nested(
-    source: serde_json::Value,
-    join_fields: &[SearchJoinConfig],
-    pool: &Pool<Postgres>,
-) -> serde_json::Value {
-    if join_fields.is_empty() {
-        return source;
-    }
-    let mut enriched = match source {
-        serde_json::Value::Object(m) => m,
-        other => return other,
-    };
-    for jf in join_fields {
-        let local_val = enriched
-            .get(&jf.local_field)
-            .and_then(|v| v.as_str())
-            .map(String::from)
-            .unwrap_or_default();
-        if local_val.is_empty() {
-            continue;
-        }
-        let sql = format!(
-            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = $1) t",
-            jf.table, jf.foreign_field
-        );
-        let rows = db::fetch_joined_rows(pool, &sql, &local_val)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("ES enrichment query failed: {:?}", e);
-                vec![]
-            });
-        let enriched_rows: Vec<serde_json::Value> =
-            futures::future::join_all(rows.into_iter().map(|item| {
-                let jf_clone = jf.clone();
-                async move { es_enrich_nested(item, &jf_clone.join_fields, pool).await }
-            }))
-            .await;
-        enriched.insert(
-            jf.index_field.clone(),
-            serde_json::Value::Array(enriched_rows),
-        );
-    }
-    serde_json::Value::Object(enriched)
-}
+fn es_batch_enrich<'a>(
+    pool: &'a Pool<Postgres>,
+    sources: &'a mut [serde_json::Value],
+    join_fields: &'a [SearchJoinConfig],
+) -> Pin<Box<dyn Future<Output = Result<(), async_graphql::Error>> + Send + 'a>> {
+    Box::pin(async move {
+        for jf in join_fields {
+            if sources.is_empty() {
+                continue;
+            }
 
-async fn es_enrich_source(
-    source: serde_json::Value,
-    cfg: &SearchIndexConfig,
-    pool: &Pool<Postgres>,
-) -> serde_json::Value {
-    es_enrich_nested(source, &cfg.join_fields, pool).await
+            let keys: Vec<String> = sources
+                .iter()
+                .filter_map(|s| {
+                    s.get(&jf.local_field)
+                        .and_then(|v| v.as_str())
+                        .filter(|v| !v.is_empty())
+                        .map(String::from)
+                })
+                .collect();
+
+            if keys.is_empty() {
+                for source in sources.iter_mut() {
+                    if let Some(obj) = source.as_object_mut() {
+                        obj.insert(
+                            jf.index_field.clone(),
+                            serde_json::Value::Array(vec![]),
+                        );
+                    }
+                }
+                continue;
+            }
+
+            let sql = format!(
+                "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {} = ANY($1)) t",
+                jf.table, jf.foreign_field
+            );
+            let mut all_children: Vec<serde_json::Value> =
+                db::fetch_joined_rows_batch(pool, &sql, &keys).await.unwrap_or_else(|e| {
+                    tracing::warn!("ES batch enrichment query failed: {:?}", e);
+                    vec![]
+                });
+
+            if !jf.join_fields.is_empty() {
+                es_batch_enrich(pool, &mut all_children, &jf.join_fields).await?;
+            }
+
+            let mut grouped: HashMap<&str, Vec<serde_json::Value>> = HashMap::new();
+            for child in &all_children {
+                if let Some(v) = child
+                    .get(&jf.foreign_field)
+                    .and_then(|v| v.as_str())
+                {
+                    grouped.entry(v).or_default().push(child.clone());
+                }
+            }
+
+            for source in sources.iter_mut() {
+                let key = source
+                    .get(&jf.local_field)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let children = grouped.remove(key).unwrap_or_default();
+                if let Some(obj) = source.as_object_mut() {
+                    obj.insert(jf.index_field.clone(), serde_json::Value::Array(children));
+                }
+            }
+        }
+        Ok(())
+    })
 }
