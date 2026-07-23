@@ -274,28 +274,45 @@ fn build_es_filter(
     _all_fields: &[String],
 ) -> Vec<serde_json::Value> {
     let mut must = Vec::new();
-    if let Some(f) = filter
-        && let Ok(obj) = f.object()
-    {
-        for (key, val) in obj.iter() {
-            if val.is_null() {
+    if let Some(f) = filter {
+        must.extend(build_es_filter_val(f, ""));
+    }
+    must
+}
+
+fn build_es_filter_val(val: &ValueAccessor, path_prefix: &str) -> Vec<serde_json::Value> {
+    let mut must = Vec::new();
+    if let Ok(obj) = val.object() {
+        for (key, child) in obj.iter() {
+            if child.is_null() {
                 continue;
             }
-            let key_str = key.as_str();
-            if let Ok(s) = val.string() {
+            let full_path = if path_prefix.is_empty() {
+                key.to_string()
+            } else {
+                format!("{}.{}", path_prefix, key)
+            };
+            if let Ok(s) = child.string() {
                 if !s.is_empty() {
+                    let field = if path_prefix.is_empty() {
+                        full_path.clone()
+                    } else {
+                        format!("{}.keyword", full_path)
+                    };
                     must.push(serde_json::json!({
-                        "term": { key_str: s }
+                        "term": { field: s }
                     }));
                 }
-            } else if let Ok(n) = val.i64() {
+            } else if let Ok(n) = child.i64() {
                 must.push(serde_json::json!({
-                    "term": { key_str: n }
+                    "term": { full_path: n }
                 }));
-            } else if let Ok(n) = val.f64() {
+            } else if let Ok(n) = child.f64() {
                 must.push(serde_json::json!({
-                    "term": { key_str: n }
+                    "term": { full_path: n }
                 }));
+            } else {
+                must.extend(build_es_filter_val(&child, &full_path));
             }
         }
     }

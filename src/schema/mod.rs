@@ -14,7 +14,7 @@ use async_graphql::dynamic::{InputObject, InputValue, Schema, TypeRef};
 use sqlx::{Pool, Postgres};
 
 use crate::circuit_breaker::CircuitBreaker;
-use crate::config::{Config, PermissionCache, RowFilterConfig};
+use crate::config::{Config, PermissionCache, RowFilterConfig, SearchJoinConfig};
 
 #[derive(Clone)]
 pub(crate) struct AppContext {
@@ -85,6 +85,27 @@ pub(crate) fn apply_row_filters(
     }
 }
 
+fn build_nested_search_filters(
+    join_fields: &[SearchJoinConfig],
+    accumulator: &mut Vec<InputObject>,
+) -> Vec<(String, String)> {
+    let mut fields = Vec::new();
+    for jf in join_fields {
+        let type_name = format!("{}Filter", util::capitalize_words(&jf.index_field));
+        let nested = build_nested_search_filters(&jf.join_fields, accumulator);
+        let mut input = InputObject::new(&type_name);
+        for f in &jf.searchable_fields {
+            input = input.field(InputValue::new(f.clone(), TypeRef::named(TypeRef::STRING)));
+        }
+        for (field_name, nested_type) in nested {
+            input = input.field(InputValue::new(field_name, TypeRef::named(nested_type)));
+        }
+        accumulator.push(input);
+        fields.push((jf.index_field.clone(), type_name));
+    }
+    fields
+}
+
 pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
     let es_client = config
         .elasticsearch
@@ -138,6 +159,16 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
 
     for index_cfg in &config.search_indexes {
         tracing::debug!("Registering search index: {}", index_cfg.name);
+
+        // Build nested filter input types from join_fields
+        let mut nested_filters: Vec<InputObject> = Vec::new();
+        let nested_fields =
+            build_nested_search_filters(&index_cfg.join_fields, &mut nested_filters);
+        for input_obj in nested_filters {
+            schema_builder = schema_builder.register(input_obj);
+        }
+
+        // Build top-level search filter input
         let sf = index_cfg.searchable_fields.clone();
         let mut input_obj = InputObject::new(format!(
             "{}SearchFilter",
@@ -146,6 +177,12 @@ pub async fn build_schema(config: Arc<Config>, pool: Pool<Postgres>) -> Schema {
         for f in &sf {
             input_obj =
                 input_obj.field(InputValue::new(f.clone(), TypeRef::named(TypeRef::STRING)));
+        }
+        for (field_name, type_name) in &nested_fields {
+            input_obj = input_obj.field(InputValue::new(
+                field_name.clone(),
+                TypeRef::named(type_name.clone()),
+            ));
         }
         schema_builder = schema_builder.register(input_obj);
         let search_row_filters = config
