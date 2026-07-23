@@ -32,6 +32,8 @@ pub struct SearchIndexConfig {
     pub searchable_fields: Vec<String>,
     #[serde(default)]
     pub join_fields: Vec<SearchJoinConfig>,
+    #[serde(default)]
+    pub allow_raw_es_query: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

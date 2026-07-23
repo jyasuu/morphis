@@ -40,6 +40,12 @@ pub(crate) fn capitalize_first(s: &str) -> String {
     }
 }
 
+pub(crate) fn capitalize_words(s: &str) -> String {
+    s.split('_')
+        .map(|word| capitalize_first(word))
+        .collect()
+}
+
 pub(crate) fn gql_value_to_sql_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
@@ -73,6 +79,14 @@ mod tests {
         assert_eq!(capitalize_first(""), "");
         assert_eq!(capitalize_first("a"), "A");
         assert_eq!(capitalize_first("ABC"), "ABC");
+    }
+
+    #[test]
+    fn test_capitalize_words() {
+        assert_eq!(capitalize_words("material_features"), "MaterialFeatures");
+        assert_eq!(capitalize_words("feature_attributes"), "FeatureAttributes");
+        assert_eq!(capitalize_words("single"), "Single");
+        assert_eq!(capitalize_words(""), "");
     }
 
     #[test]

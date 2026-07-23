@@ -34,6 +34,10 @@ pub(crate) fn add_search_field(
                         .get("query")
                         .and_then(|v| v.string().ok().map(String::from))
                         .unwrap_or_default();
+                    let es_query_raw = ctx
+                        .args
+                        .get("esQuery")
+                        .and_then(|v| v.string().ok().map(String::from));
                     let filter = ctx.args.get("filter");
                     let limit = ctx
                         .args
@@ -52,6 +56,7 @@ pub(crate) fn add_search_field(
                         app_ctx,
                         &idx_cfg,
                         &query_str,
+                        es_query_raw.as_deref(),
                         filter.as_ref(),
                         limit,
                         offset,
@@ -68,6 +73,7 @@ pub(crate) fn add_search_field(
             },
         )
         .argument(InputValue::new("query", TypeRef::named(TypeRef::STRING)))
+        .argument(InputValue::new("esQuery", TypeRef::named(TypeRef::STRING)))
         .argument(InputValue::new(
             "filter",
             TypeRef::named(format!(
@@ -86,6 +92,7 @@ async fn es_search(
     app_ctx: &AppContext,
     index_cfg: &SearchIndexConfig,
     query_str: &str,
+    es_query_raw: Option<&str>,
     filters: Option<&ValueAccessor<'_>>,
     limit: usize,
     offset: usize,
@@ -101,18 +108,32 @@ async fn es_search(
         _ => return Err(async_graphql::Error::new("Elasticsearch not configured")),
     };
 
-    let all_searchable = collect_searchable_fields(index_cfg);
-    let mut must_clauses = build_es_filter(filters, &all_searchable);
     let filter_clauses = build_es_row_filters(app_ctx, identity, row_filters).await?;
-    must_clauses.extend(filter_clauses);
 
-    let mut bool_body = serde_json::json!({
-        "must": must_clauses
-    });
-    if !query_str.is_empty() {
-        bool_body["should"] = serde_json::json!([{ "multi_match": { "query": query_str, "fields": all_searchable, "type": "cross_fields" } }]);
-        bool_body["minimum_should_match"] = serde_json::json!(1);
-    }
+    let bool_body = if let Some(raw) = es_query_raw {
+        if !index_cfg.allow_raw_es_query {
+            return Err(async_graphql::Error::new(
+                "Raw ES queries not enabled for this index",
+            ));
+        }
+        let raw_query: serde_json::Value = serde_json::from_str(raw).map_err(|e| {
+            async_graphql::Error::new(format!("Invalid esQuery JSON: {}", e))
+        })?;
+        let mut must = vec![raw_query];
+        must.extend(filter_clauses);
+        serde_json::json!({ "must": must })
+    } else {
+        let all_searchable = collect_searchable_fields(index_cfg);
+        let mut must_clauses = build_es_filter(filters, &all_searchable);
+        must_clauses.extend(filter_clauses);
+        let mut bool_body = serde_json::json!({ "must": must_clauses });
+        if !query_str.is_empty() {
+            bool_body["should"] = serde_json::json!([{ "multi_match": { "query": query_str, "fields": all_searchable, "type": "cross_fields" } }]);
+            bool_body["minimum_should_match"] = serde_json::json!(1);
+        }
+        bool_body
+    };
+
     let mut es_query = serde_json::json!({
         "query": { "bool": bool_body },
         "size": limit
@@ -253,28 +274,45 @@ fn build_es_filter(
     _all_fields: &[String],
 ) -> Vec<serde_json::Value> {
     let mut must = Vec::new();
-    if let Some(f) = filter
-        && let Ok(obj) = f.object()
-    {
-        for (key, val) in obj.iter() {
-            if val.is_null() {
+    if let Some(f) = filter {
+        must.extend(build_es_filter_val(f, ""));
+    }
+    must
+}
+
+fn build_es_filter_val(val: &ValueAccessor, path_prefix: &str) -> Vec<serde_json::Value> {
+    let mut must = Vec::new();
+    if let Ok(obj) = val.object() {
+        for (key, child) in obj.iter() {
+            if child.is_null() {
                 continue;
             }
-            let key_str = key.as_str();
-            if let Ok(s) = val.string() {
+            let full_path = if path_prefix.is_empty() {
+                key.to_string()
+            } else {
+                format!("{}.{}", path_prefix, key)
+            };
+            if let Ok(s) = child.string() {
                 if !s.is_empty() {
+                    let field = if path_prefix.is_empty() {
+                        full_path.clone()
+                    } else {
+                        format!("{}.keyword", full_path)
+                    };
                     must.push(serde_json::json!({
-                        "term": { key_str: s }
+                        "term": { field: s }
                     }));
                 }
-            } else if let Ok(n) = val.i64() {
+            } else if let Ok(n) = child.i64() {
                 must.push(serde_json::json!({
-                    "term": { key_str: n }
+                    "term": { full_path: n }
                 }));
-            } else if let Ok(n) = val.f64() {
+            } else if let Ok(n) = child.f64() {
                 must.push(serde_json::json!({
-                    "term": { key_str: n }
+                    "term": { full_path: n }
                 }));
+            } else {
+                must.extend(build_es_filter_val(&child, &full_path));
             }
         }
     }
