@@ -34,6 +34,10 @@ pub(crate) fn add_search_field(
                         .get("query")
                         .and_then(|v| v.string().ok().map(String::from))
                         .unwrap_or_default();
+                    let es_query_raw = ctx
+                        .args
+                        .get("esQuery")
+                        .and_then(|v| v.string().ok().map(String::from));
                     let filter = ctx.args.get("filter");
                     let limit = ctx
                         .args
@@ -52,6 +56,7 @@ pub(crate) fn add_search_field(
                         app_ctx,
                         &idx_cfg,
                         &query_str,
+                        es_query_raw.as_deref(),
                         filter.as_ref(),
                         limit,
                         offset,
@@ -68,6 +73,7 @@ pub(crate) fn add_search_field(
             },
         )
         .argument(InputValue::new("query", TypeRef::named(TypeRef::STRING)))
+        .argument(InputValue::new("esQuery", TypeRef::named(TypeRef::STRING)))
         .argument(InputValue::new(
             "filter",
             TypeRef::named(format!(
@@ -86,6 +92,7 @@ async fn es_search(
     app_ctx: &AppContext,
     index_cfg: &SearchIndexConfig,
     query_str: &str,
+    es_query_raw: Option<&str>,
     filters: Option<&ValueAccessor<'_>>,
     limit: usize,
     offset: usize,
@@ -101,18 +108,32 @@ async fn es_search(
         _ => return Err(async_graphql::Error::new("Elasticsearch not configured")),
     };
 
-    let all_searchable = collect_searchable_fields(index_cfg);
-    let mut must_clauses = build_es_filter(filters, &all_searchable);
     let filter_clauses = build_es_row_filters(app_ctx, identity, row_filters).await?;
-    must_clauses.extend(filter_clauses);
 
-    let mut bool_body = serde_json::json!({
-        "must": must_clauses
-    });
-    if !query_str.is_empty() {
-        bool_body["should"] = serde_json::json!([{ "multi_match": { "query": query_str, "fields": all_searchable, "type": "cross_fields" } }]);
-        bool_body["minimum_should_match"] = serde_json::json!(1);
-    }
+    let bool_body = if let Some(raw) = es_query_raw {
+        if !index_cfg.allow_raw_es_query {
+            return Err(async_graphql::Error::new(
+                "Raw ES queries not enabled for this index",
+            ));
+        }
+        let raw_query: serde_json::Value = serde_json::from_str(raw).map_err(|e| {
+            async_graphql::Error::new(format!("Invalid esQuery JSON: {}", e))
+        })?;
+        let mut must = vec![raw_query];
+        must.extend(filter_clauses);
+        serde_json::json!({ "must": must })
+    } else {
+        let all_searchable = collect_searchable_fields(index_cfg);
+        let mut must_clauses = build_es_filter(filters, &all_searchable);
+        must_clauses.extend(filter_clauses);
+        let mut bool_body = serde_json::json!({ "must": must_clauses });
+        if !query_str.is_empty() {
+            bool_body["should"] = serde_json::json!([{ "multi_match": { "query": query_str, "fields": all_searchable, "type": "cross_fields" } }]);
+            bool_body["minimum_should_match"] = serde_json::json!(1);
+        }
+        bool_body
+    };
+
     let mut es_query = serde_json::json!({
         "query": { "bool": bool_body },
         "size": limit

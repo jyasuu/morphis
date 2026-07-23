@@ -318,6 +318,7 @@ search_indexes:
   - name: materials_search
     index: materials
     type: materials
+    allow_raw_es_query: true
     searchable_fields:
       - mat_no
       - name

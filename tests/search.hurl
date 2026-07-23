@@ -111,3 +111,67 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.data.searchMaterials" count == 0
+
+# Raw ES query: filter by nested feature_name = "Eco"
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"bool\\\":{\\\"must\\\":[{\\\"term\\\":{\\\"material_features.feature_name.keyword\\\":\\\"Eco\\\"}}]}}\") { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+jsonpath "$.data.searchMaterials[0].mat_no" == "M003"
+
+# Raw ES query: filter by feature_name = "Certification"
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"bool\\\":{\\\"must\\\":[{\\\"term\\\":{\\\"material_features.feature_name.keyword\\\":\\\"Certification\\\"}}]}}\") { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+jsonpath "$.data.searchMaterials[0].mat_no" == "M002"
+
+# Raw ES query: filter by feature_name = "Construction" (all 3 have it)
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"bool\\\":{\\\"must\\\":[{\\\"term\\\":{\\\"material_features.feature_name.keyword\\\":\\\"Construction\\\"}}]}}\") { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 3
+
+# Raw ES query: bool must + should (feature=Construction AND name contains Wool)
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"bool\\\":{\\\"must\\\":[{\\\"term\\\":{\\\"material_features.feature_name.keyword\\\":\\\"Construction\\\"}}],\\\"should\\\":[{\\\"match\\\":{\\\"name\\\":\\\"Wool\\\"}}],\\\"minimum_should_match\\\":1}}\") { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+jsonpath "$.data.searchMaterials[0].mat_no" == "M002"
+
+# Raw ES query: nested attribute match (attr_value = "OEKO-TEX")
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"term\\\":{\\\"material_features.feature_attributes.attr_value.keyword\\\":\\\"OEKO-TEX\\\"}}\") { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 1
+jsonpath "$.data.searchMaterials[0].mat_no" == "M002"
+
+# Raw ES query: with limit
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ searchMaterials(esQuery: \"{\\\"match_all\\\":{}}\", limit: 2) { mat_no name } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.searchMaterials" count == 2
