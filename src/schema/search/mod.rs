@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, Object, TypeRef, ValueAccessor};
 use async_graphql::{Name, Value};
+use sqlx::Row;
 use sqlx::{Pool, Postgres};
 
 use identity_auth::circuit_breaker::CircuitBreaker;
@@ -22,6 +23,22 @@ use crate::config::{Config, RowFilterConfig, SearchIndexConfig, SearchJoinConfig
 use super::db;
 use super::util::{capitalize_first, gql_val};
 use super::Identity;
+
+/// Backend selection for a search index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SearchBackend {
+    Elasticsearch,
+    Pgroonga,
+}
+
+impl SearchBackend {
+    pub(crate) fn from_config(backend: Option<&str>) -> Self {
+        match backend {
+            Some("pgroonga") => SearchBackend::Pgroonga,
+            _ => SearchBackend::Elasticsearch,
+        }
+    }
+}
 
 /// Dependencies for the search module, received explicitly at construction
 /// instead of being read out of the app context field-by-field.
@@ -186,6 +203,198 @@ pub(crate) fn build_search_hit_object(index_cfg: &SearchIndexConfig) -> Object {
 /// relevance score Elasticsearch assigned it.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn search(
+    service: &SearchService,
+    index_cfg: &SearchIndexConfig,
+    query_str: &str,
+    query_operator: &str,
+    es_query_raw: Option<&str>,
+    filters: Option<&ValueAccessor<'_>>,
+    limit: usize,
+    offset: usize,
+    identity: Option<&Identity>,
+    row_filters: &[RowFilterConfig],
+) -> Result<Vec<(serde_json::Value, f64)>, async_graphql::Error> {
+    let backend = SearchBackend::from_config(index_cfg.backend.as_deref());
+
+    match backend {
+        SearchBackend::Pgroonga => {
+            if es_query_raw.is_some() {
+                return Err(async_graphql::Error::new(
+                    "esQuery is not supported with the pgroonga search backend",
+                ));
+            }
+            search_pg(service, index_cfg, query_str, query_operator, filters, limit, offset, identity, row_filters).await
+        }
+        SearchBackend::Elasticsearch => {
+            search_es(service, index_cfg, query_str, query_operator, es_query_raw, filters, limit, offset, identity, row_filters).await
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn search_pg(
+    service: &SearchService,
+    index_cfg: &SearchIndexConfig,
+    query_str: &str,
+    query_operator: &str,
+    filters: Option<&ValueAccessor<'_>>,
+    limit: usize,
+    offset: usize,
+    identity: Option<&Identity>,
+    row_filters: &[RowFilterConfig],
+) -> Result<Vec<(serde_json::Value, f64)>, async_graphql::Error> {
+    tracing::debug!(
+        index = %index_cfg.index,
+        query = %query_str.chars().take(80).collect::<String>(),
+        limit,
+        offset,
+        "PG search called"
+    );
+
+    let mut params: Vec<String> = Vec::new();
+    let mut where_clauses: Vec<String> = Vec::new();
+
+    // Row-level security
+    let rls_fragments = row_filter::apply_pg(
+        &service.pool,
+        &service.permission_cache,
+        identity,
+        row_filters,
+        &mut params,
+    )
+    .await?;
+    where_clauses.extend(rls_fragments);
+
+    // Structured filters
+    let (filter_fragments, filter_params) = operator::build_pg_filter(filters);
+    where_clauses.extend(filter_fragments);
+    params.extend(filter_params);
+
+    // Free-text search
+    if !query_str.trim().is_empty() {
+        let escaped = escape_pgroonga_query(query_str);
+        if query_operator == "AND" {
+            params.push(format!("\"{}\"", escaped));
+            where_clauses.push(format!("search_doc &@~ ${}", params.len()));
+        } else {
+            let terms: Vec<&str> = escaped.split_whitespace().collect();
+            let or_query: Vec<String> = terms.iter().map(|t| format!("\"{}\"", t)).collect();
+            params.push(or_query.join(" OR "));
+            where_clauses.push(format!("search_doc &@~ ${}", params.len()));
+        }
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", where_clauses.join(" AND "))
+    };
+
+    let limit_param = params.len() + 1;
+    let offset_param = params.len() + 2;
+    let sql = format!(
+        "SELECT m.mat_no, pgroonga_score(m) AS score \
+         FROM materials m{} \
+         ORDER BY score DESC, m.mat_no ASC \
+         LIMIT ${} OFFSET ${}",
+        where_sql, limit_param, offset_param,
+    );
+
+    // Execute query
+    let mut query = sqlx::query(&sql);
+    for p in &params {
+        query = query.bind(p);
+    }
+    query = query.bind(limit as i64);
+    query = query.bind(offset as i64);
+
+    let rows = query
+        .fetch_all(&service.pool)
+        .await
+        .map_err(|e| async_graphql::Error::new(format!("PG search query failed: {}", e)))?;
+
+    let mut hits: Vec<(String, f64)> = Vec::new();
+    for row in &rows {
+        let mat_no: String = row.try_get("mat_no").map_err(|e| async_graphql::Error::new(e.to_string()))?;
+        let score: f64 = row.try_get("score").unwrap_or(0.0);
+        hits.push((mat_no, score));
+    }
+
+    if hits.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Fetch full materials via DataLoader (reuse existing relation loading)
+    let mat_nos: Vec<String> = hits.iter().map(|(m, _)| m.clone()).collect();
+    // Use direct SQL query to fetch materials with nested relations
+    let material_sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text AS __doc FROM ( \
+         SELECT m.mat_no, m.name, m.status, m.tenant_id, \
+         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', s.id, 'size_code', s.size_code, 'mat_no', s.mat_no, 'name', s.name)), '[]'::jsonb) FROM sizes s WHERE s.mat_no = m.mat_no) AS sizes, \
+         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', c.id, 'colorway_code', c.colorway_code, 'mat_no', c.mat_no, 'name', c.name, 'hex', c.hex)), '[]'::jsonb) FROM colorways c WHERE c.mat_no = m.mat_no) AS colorways, \
+         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', mf.id, 'feature_id', mf.id, 'mat_no', mf.mat_no, 'feature_name', mf.feature_name, 'description', mf.description, 'feature_attributes', \
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', fa.id, 'feature_id', fa.feature_id, 'attr_name', fa.attr_name, 'attr_value', fa.attr_value)), '[]'::jsonb) FROM feature_attributes fa WHERE fa.feature_id = mf.id) \
+         )), '[]'::jsonb) FROM material_features mf WHERE mf.mat_no = m.mat_no) AS material_features \
+         FROM materials m WHERE m.mat_no = ANY($1) \
+     ) t".to_string();
+
+    let material_rows: Vec<serde_json::Value> = db::fetch_rows(
+        &service.pool,
+        &material_sql,
+        &[db::Bind::Array(&mat_nos)],
+    )
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(error = %e.message, "PG search material fetch failed");
+        vec![]
+    });
+
+    // Build mat_no -> document map
+    let mut doc_map: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+    for doc in &material_rows {
+        if let Some(mno) = doc.get("mat_no").and_then(|v| v.as_str()) {
+            doc_map.insert(mno.to_string(), doc.clone());
+        }
+    }
+
+    // Pair documents with scores
+    let results: Vec<(serde_json::Value, f64)> = hits
+        .into_iter()
+        .filter_map(|(mat_no, score)| {
+            doc_map.remove(&mat_no).map(|doc| (doc, score))
+        })
+        .collect();
+
+    Ok(results)
+}
+
+/// Escape special characters in user input before passing to PGroonga's
+/// `&@~` query syntax operator. This ensures Groonga query syntax special
+/// characters are treated as literal text.
+fn escape_pgroonga_query(input: &str) -> String {
+    let mut result = String::with_capacity(input.len() * 2);
+    for c in input.chars() {
+        match c {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            '(' => result.push_str("\\("),
+            ')' => result.push_str("\\)"),
+            '*' => result.push_str("\\*"),
+            '~' => result.push_str("\\~"),
+            '-' => result.push_str("\\-"),
+            ':' => result.push_str("\\:"),
+            '^' => result.push_str("\\^"),
+            '$' => result.push_str("\\$"),
+            '.' => result.push_str("\\."),
+            '|' => result.push_str("\\|"),
+            ' ' | '\t' | '\n' | '\r' => result.push(c),
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn search_es(
     service: &SearchService,
     index_cfg: &SearchIndexConfig,
     query_str: &str,

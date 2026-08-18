@@ -319,6 +319,7 @@ search_indexes:
     index: materials
     type: materials
     allow_raw_es_query: true
+    backend: pgroonga
     searchable_fields:
       - mat_no
       - name

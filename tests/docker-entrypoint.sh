@@ -137,6 +137,16 @@ PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
     ('PDATA-003', 'Protected US 2', 'us');
 " > /dev/null 2>&1
 
+# Seed ES-TEST-A and ES-TEST-B in PG (needed for pgroonga search backend).
+# With ES backend these are created directly in ES by the test; with pgroonga
+# the search only queries PG, so the rows must exist here too.
+PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  INSERT INTO materials (mat_no, name, status, tenant_id) VALUES
+    ('ES-TEST-A', 'ES Row Filter Alpha', 'active', 'alpha'),
+    ('ES-TEST-B', 'ES Row Filter Beta', 'active', 'beta')
+  ON CONFLICT (mat_no) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, tenant_id = EXCLUDED.tenant_id;
+" > /dev/null 2>&1
+
 # Run RLS tests (data seeded above via SQL)
 for f in row_filters.hurl; do
   name="$(basename "$f")"

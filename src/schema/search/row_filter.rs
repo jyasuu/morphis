@@ -191,6 +191,97 @@ pub(crate) async fn apply_es(
     Ok(clauses)
 }
 
+/// PG compiler: resolves row filters into SQL WHERE fragments for PGroonga
+/// search queries. Reuses the same PermissionCache as the ES compiler.
+pub(crate) async fn apply_pg(
+    pool: &Pool<Postgres>,
+    permission_cache: &Arc<Mutex<PermissionCache>>,
+    identity: Option<&Identity>,
+    row_filters: &[RowFilterConfig],
+    params: &mut Vec<String>,
+) -> Result<Vec<String>, Error> {
+    let identity = match identity {
+        Some(id) => id,
+        None => return Ok(Vec::new()),
+    };
+    let mut fragments = Vec::new();
+    for (rf, val) in matching_row_filters(identity, row_filters) {
+        match rf {
+            RowFilterConfig::ColumnFilter { column, .. } => {
+                params.push(val.to_string());
+                fragments.push(format!("m.{} = ${}", column, params.len()));
+            }
+            RowFilterConfig::SubqueryFilter {
+                columns,
+                match_columns,
+                from_source,
+                user_column,
+                cache_ttl_secs,
+                ..
+            } => {
+                let cache_key = format!("{}:{}:{}", from_source, user_column, val);
+                let ttl = Duration::from_secs(cache_ttl_secs.unwrap_or(60));
+                let cols: Vec<String> = match_columns.clone();
+                let rows = {
+                    let mut cache = permission_cache.lock().await;
+                    if let Some(cached) = cache.get(&cache_key) {
+                        cached
+                    } else {
+                        let sql = format!(
+                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
+                            cols.join(", "),
+                            from_source,
+                            user_column,
+                        );
+                        let result =
+                            db::fetch_rows(pool, &sql, &[db::Bind::Text(val)]).await?;
+                        cache.set(cache_key, result.clone(), ttl);
+                        result
+                    }
+                };
+                if rows.is_empty() {
+                    fragments.push("1 = 0".to_string());
+                } else {
+                    let mut or_parts = Vec::new();
+                    for row in &rows {
+                        if let Some(obj) = row.as_object() {
+                            let mut and_parts = Vec::new();
+                            for (col_idx, col) in columns.iter().enumerate() {
+                                if let Some(mcol) = match_columns.get(col_idx)
+                                    && let Some(v) = obj.get(mcol.as_str())
+                                {
+                                    if let Some(s) = v.as_str() {
+                                        params.push(s.to_string());
+                                        and_parts
+                                            .push(format!("m.{} = ${}", col, params.len()));
+                                    } else if let Some(n) = v.as_i64() {
+                                        params.push(n.to_string());
+                                        and_parts
+                                            .push(format!("m.{} = ${}", col, params.len()));
+                                    }
+                                }
+                            }
+                            if !and_parts.is_empty() {
+                                or_parts.push(format!(
+                                    "({})",
+                                    and_parts.join(" AND ")
+                                ));
+                            }
+                        }
+                    }
+                    if !or_parts.is_empty() {
+                        fragments.push(format!(
+                            "({})",
+                            or_parts.join(" OR ")
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(fragments)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

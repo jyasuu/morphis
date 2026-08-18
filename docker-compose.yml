@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: groonga/pgroonga:4.0.8-debian-17
     command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
@@ -57,9 +57,9 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME_URL: http://localhost:8080
+      KC_HOSTNAME_URL: http://localhost:8180
     ports:
-      - "8080:8080"
+      - "8180:8080"
     healthcheck:
       test: ["CMD-SHELL", "/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin >/dev/null 2>&1 && /opt/keycloak/bin/kcadm.sh get realms/morphis >/dev/null 2>&1"]
       interval: 10s

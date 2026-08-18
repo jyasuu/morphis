@@ -3,7 +3,7 @@
 
 import json, urllib.request, urllib.parse, urllib.error, time, sys, os
 
-KC = os.environ.get("KC_URL", "http://localhost:8080")
+KC = os.environ.get("KC_URL", "http://localhost:8180")
 ADMIN = os.environ.get("KC_ADMIN", "admin:admin")
 
 def req(method, path, data=None):

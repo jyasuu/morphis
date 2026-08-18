@@ -1,4 +1,4 @@
-GET http://localhost:4000/health
+GET http://app:4000/health
 HTTP 200
 [Asserts]
 body == "ok"

@@ -3,7 +3,7 @@
 # Tests validate: reachability, auth enforcement, and host header allowlisting.
 
 # MCP initialize through auth-proxy with valid MCP JWT
-POST http://localhost:9080/mcp
+POST http://auth-proxy:9080/mcp
 Authorization: Bearer {{MCP_TOKEN}}
 Content-Type: application/json
 Accept: application/json, text/event-stream
@@ -20,7 +20,7 @@ Accept: application/json, text/event-stream
 HTTP 200
 
 # MCP without JWT (direct to app) should fail with 401
-POST http://localhost:4000/mcp
+POST http://app:4000/mcp
 Content-Type: application/json
 Accept: application/json, text/event-stream
 {

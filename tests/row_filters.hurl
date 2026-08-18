@@ -3,7 +3,7 @@
 #   materials table must have a tenant_id column (nullable text)
 
 # Create material with X-Tenant-ID — auto_set: true should set tenant_id
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 {
@@ -15,7 +15,7 @@ jsonpath "$.data.createMaterials.mat_no" == "RLTEST1"
 jsonpath "$.data.createMaterials.tenant_id" == "tenant-alpha"
 
 # Create another with different tenant
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -27,7 +27,7 @@ jsonpath "$.data.createMaterials.mat_no" == "RLTEST2"
 jsonpath "$.data.createMaterials.tenant_id" == "tenant-beta"
 
 # List with tenant-alpha — should see only alpha's material
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 {
@@ -40,7 +40,7 @@ jsonpath "$.data.materialsList[0].tenant_id" == "tenant-alpha"
 jsonpath "$.data.materialsList" count == 1
 
 # List with tenant-beta — should see only beta's material
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -53,7 +53,7 @@ jsonpath "$.data.materialsList[0].tenant_id" == "tenant-beta"
 jsonpath "$.data.materialsList" count == 1
 
 # Single query with matching tenant
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 {
@@ -65,7 +65,7 @@ jsonpath "$.data.materials.mat_no" == "RLTEST1"
 jsonpath "$.data.materials.tenant_id" == "tenant-alpha"
 
 # Single query with non-matching tenant — should be filtered out
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -76,7 +76,7 @@ HTTP 200
 jsonpath "$.data.materials" == null
 
 # List without headers — no filters applied, all rows visible
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 {
   "query": "{ materialsList { mat_no tenant_id } }"
@@ -92,7 +92,7 @@ jsonpath "$.data.materialsList[*].mat_no" contains "RLTEST2"
 # Both filters must pass (AND).
 
 # Both X-Tenant-ID and X-User-ID match — should pass both filters
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-alpha
@@ -105,7 +105,7 @@ jsonpath "$.data.materialsList[0].mat_no" == "RLTEST1"
 jsonpath "$.data.materialsList" count == 1
 
 # Column filter matches but subquery doesn't — should be empty
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-beta
@@ -117,7 +117,7 @@ HTTP 200
 jsonpath "$.data.materialsList" count == 0
 
 # Both headers match beta's material
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 X-User-ID: tenant-beta
@@ -130,7 +130,7 @@ jsonpath "$.data.materialsList[0].mat_no" == "RLTEST2"
 jsonpath "$.data.materialsList" count == 1
 
 # Single query with both headers matching
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-alpha
@@ -142,7 +142,7 @@ HTTP 200
 jsonpath "$.data.materials.mat_no" == "RLTEST1"
 
 # Single query: column passes, subquery fails
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-beta
@@ -154,7 +154,7 @@ HTTP 200
 jsonpath "$.data.materials" == null
 
 # Update with both headers matching
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-alpha
@@ -167,7 +167,7 @@ jsonpath "$.data.updateMaterials.mat_no" == "RLTEST1"
 jsonpath "$.data.updateMaterials.name" == "Alpha via Both Filters"
 
 # Update: column passes, subquery fails
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 X-User-ID: tenant-beta
@@ -180,7 +180,7 @@ jsonpath "$.data" == null
 jsonpath "$.errors" count > 0
 
 # Update with matching tenant
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 {
@@ -192,7 +192,7 @@ jsonpath "$.data.updateMaterials.mat_no" == "RLTEST1"
 jsonpath "$.data.updateMaterials.name" == "Alpha via Column Filter"
 
 # Update with wrong tenant — should fail (no row matching PK + filter)
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -204,7 +204,7 @@ jsonpath "$.data" == null
 jsonpath "$.errors" count > 0
 
 # Delete with wrong tenant — should fail
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -221,7 +221,7 @@ jsonpath "$.errors" count > 0
 # These docs are created directly in ES (no PG sync needed).
 
 # Create ES doc with tenant_id "alpha"
-POST http://localhost:9200/materials/_doc/ES-TEST-A
+POST http://es:9200/materials/_doc/ES-TEST-A
 Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 Content-Type: application/json
 {
@@ -233,7 +233,7 @@ Content-Type: application/json
 HTTP 201
 
 # Create ES doc with tenant_id "beta"
-POST http://localhost:9200/materials/_doc/ES-TEST-B
+POST http://es:9200/materials/_doc/ES-TEST-B
 Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 Content-Type: application/json
 {
@@ -245,12 +245,12 @@ Content-Type: application/json
 HTTP 201
 
 # Refresh ES index so docs are searchable
-POST http://localhost:9200/materials/_refresh
+POST http://es:9200/materials/_refresh
 Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
 
 # Search with X-Tenant-ID: alpha — only ES-TEST-A
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: alpha
 {
@@ -262,7 +262,7 @@ jsonpath "$.data.searchMaterials" count == 1
 jsonpath "$.data.searchMaterials[0].node.mat_no" == "ES-TEST-A"
 
 # Search with X-Tenant-ID: beta — only ES-TEST-B
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: beta
 {
@@ -274,25 +274,25 @@ jsonpath "$.data.searchMaterials" count == 1
 jsonpath "$.data.searchMaterials[0].node.mat_no" == "ES-TEST-B"
 
 # Search without headers — both ES docs visible
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 {
-  "query": "{ searchMaterials(query: \"ES Row Filter\") { node { mat_no name } } }"
+  "query": "{ searchMaterials(query: \"ES Row Filter\", queryOperator: AND) { node { mat_no name } } }"
 }
 HTTP 200
 [Asserts]
 jsonpath "$.data.searchMaterials" count == 2
 
 # Clean up ES test docs
-DELETE http://localhost:9200/materials/_doc/ES-TEST-A
+DELETE http://es:9200/materials/_doc/ES-TEST-A
 Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
-DELETE http://localhost:9200/materials/_doc/ES-TEST-B
+DELETE http://es:9200/materials/_doc/ES-TEST-B
 Authorization: Basic ZWxhc3RpYzptb3JwaGlzX2VzX3Bhc3M=
 HTTP 200
 
 # Clean up PG test data
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-alpha
 {
@@ -302,7 +302,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.data.deleteMaterials.mat_no" == "RLTEST1"
 
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-Tenant-ID: tenant-beta
 {
@@ -319,7 +319,7 @@ jsonpath "$.data.deleteMaterials.mat_no" == "RLTEST2"
 # via SQL in docker-entrypoint.sh before this test runs.
 
 # user-a can see both us and eu records
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
@@ -333,7 +333,7 @@ jsonpath "$.data.protected_dataList[*].id" contains "PDATA-002"
 jsonpath "$.data.protected_dataList[*].id" contains "PDATA-003"
 
 # user-b can only see us records
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {
@@ -346,7 +346,7 @@ jsonpath "$.data.protected_dataList[*].id" contains "PDATA-001"
 jsonpath "$.data.protected_dataList[*].id" contains "PDATA-003"
 
 # user-a can combine client filter with row permissions
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
@@ -358,7 +358,7 @@ jsonpath "$.data.protected_dataList" count == 1
 jsonpath "$.data.protected_dataList[0].id" == "PDATA-002"
 
 # Single query with matching permissions
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-User-ID: user-a
 {
@@ -369,7 +369,7 @@ HTTP 200
 jsonpath "$.data.protected_data.id" == "PDATA-001"
 
 # Single query without matching permissions
-POST http://localhost:4000/graphql
+POST http://app:4000/graphql
 Content-Type: application/json
 X-User-ID: user-b
 {

@@ -22,7 +22,7 @@ fi
 
 check_step "Start services" docker compose up -d db es keycloak app auth-proxy rabbitmq pgx-listen-rabbitmq pgx-consume
 
-check_step "Wait for Keycloak" wait_for_http "Keycloak" "http://localhost:8080/realms/master" 200 60
+check_step "Wait for Keycloak" wait_for_http "Keycloak" "http://localhost:8180/realms/master" 200 60
 check_step "Wait for Morphis" bash -c '
   for i in $(seq 1 60); do
     code=$(docker run --rm --network "$(docker compose ls -q 2>/dev/null || echo workspace)_default" curlimages/curl:latest -s -o /dev/null -w "%{http_code}" http://app:4000/health 2>/dev/null || echo "000")
