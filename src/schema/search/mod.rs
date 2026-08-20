@@ -293,7 +293,7 @@ async fn search_pg(
     let limit_param = params.len() + 1;
     let offset_param = params.len() + 2;
     let sql = format!(
-        "SELECT m.mat_no, pgroonga_score(m) AS score \
+        "SELECT m.mat_no, pgroonga_score(m.tableoid, m.ctid) AS score \
          FROM materials m{} \
          ORDER BY score DESC, m.mat_no ASC \
          LIMIT ${} OFFSET ${}",

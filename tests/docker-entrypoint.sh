@@ -41,6 +41,14 @@ echo "=== Cleaning up stale test data ==="
 curl -s -u elastic:morphis_es_pass -X DELETE http://es:9200/materials/_doc/ES-TEST-A > /dev/null
 curl -s -u elastic:morphis_es_pass -X DELETE http://es:9200/materials/_doc/ES-TEST-B > /dev/null
 curl -s -u elastic:morphis_es_pass -X POST http://es:9200/materials/_refresh > /dev/null
+# Clean up benchmark materials (from previous benchmark runs)
+PGPASSWORD=postgres psql -h db -U postgres -d morphis -c "
+  DELETE FROM feature_attributes WHERE feature_id IN (SELECT id FROM material_features WHERE mat_no LIKE 'BM-%');
+  DELETE FROM material_features WHERE mat_no LIKE 'BM-%';
+  DELETE FROM sizes WHERE mat_no LIKE 'BM-%';
+  DELETE FROM colorways WHERE mat_no LIKE 'BM-%';
+  DELETE FROM materials WHERE mat_no LIKE 'BM-%';
+" > /dev/null 2>&1
 # Clean up materials
 for mat in HTEST RLTEST1 RLTEST2 DTEST ES-TEST-A ES-TEST-B; do
   curl -s -X POST http://app:4000/graphql \
