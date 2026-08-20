@@ -27,10 +27,24 @@ import urllib.request
 import urllib.error
 from typing import Any
 
+
+def _has_command(cmd: str) -> bool:
+    try:
+        r = subprocess.run(["command", "-v", cmd], capture_output=True, timeout=5)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+_IN_DOCKER = os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+
 # ── Config ──────────────────────────────────────────────────────
 
-GRAPHQL_URL = os.getenv("GRAPHQL_URL", "http://app:4000/graphql")
-ES_URL = os.getenv("ES_URL", "http://es:9200")
+# Auto-detect: inside Docker uses hostnames, on host uses localhost
+_DEFAULT_GQL = "http://app:4000/graphql" if _IN_DOCKER else "http://localhost:4000/graphql"
+_DEFAULT_ES  = "http://es:9200"          if _IN_DOCKER else "http://localhost:9200"
+
+GRAPHQL_URL = os.getenv("GRAPHQL_URL", _DEFAULT_GQL)
+ES_URL = os.getenv("ES_URL", _DEFAULT_ES)
 DB_URL = os.getenv("DB_URL", "postgres://postgres:postgres@db:5432/morphis")
 ITERATIONS = int(os.getenv("ITERATIONS", "50"))
 WARMUP = int(os.getenv("WARMUP", "5"))
@@ -41,8 +55,8 @@ BENCH_PREFIX = "BM-"
 
 # ── Helpers ─────────────────────────────────────────────────────
 
-def log(msg: str):
-    print(f"[bench] {msg}", flush=True)
+def log(msg: str, end: str = "\n"):
+    print(f"[bench] {msg}", end=end, flush=True)
 
 
 def gql(query: str) -> dict:
@@ -65,13 +79,16 @@ def es_request(path: str, method: str = "GET", body: dict | None = None, timeout
         headers={"Content-Type": "application/json", "Authorization": f"Basic {creds}"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read())
+        return json.loads(resp.read()    )
 
 
 def run_sql(sql: str) -> str:
     env = os.environ.copy()
-    env["PGPASSWORD"] = DB_URL.split(":")[2].split("@")[0]
-    args = ["psql", DB_URL, "-t", "-A", "-c", sql]
+    env["PGPASSWORD"] = "postgres"
+    if _IN_DOCKER:
+        args = ["psql", DB_URL, "-t", "-A", "-c", sql]
+    else:
+        args = ["docker", "compose", "exec", "-T", "db", "psql", "-U", "postgres", "-d", "morphis", "-t", "-A", "-c", sql]
     r = subprocess.run(args, capture_output=True, text=True, timeout=600, env=env)
     if r.returncode != 0:
         log(f"  SQL warning: {r.stderr.strip()[:200]}")
@@ -79,15 +96,7 @@ def run_sql(sql: str) -> str:
 
 
 def run_sql_file(path: str, var: str | None = None) -> str:
-    env = os.environ.copy()
-    env["PGPASSWORD"] = DB_URL.split(":")[2].split("@")[0]
-    args = ["psql", DB_URL, "-t", "-A", "-f", path]
-    if var:
-        args.extend(["-v", var])
-    r = subprocess.run(args, capture_output=True, text=True, timeout=600, env=env)
-    if r.returncode != 0:
-        log(f"  SQL file warning: {r.stderr.strip()[:200]}")
-    return r.stdout.strip()
+    return run_sql(f"\\i {path}" if not var else f"\\i {path} \\set var {var}")
 
 
 # ── Benchmark infra ─────────────────────────────────────────────
@@ -119,14 +128,16 @@ class BenchResult:
         }
 
 
-def bench(label: str, fn, iterations: int = ITERATIONS, warmup: int = WARMUP) -> BenchResult:
+def bench(label: str, fn, iterations: int | None = None, warmup: int | None = None) -> BenchResult:
+    iters = iterations if iterations is not None else ITERATIONS
+    wmup = warmup if warmup is not None else WARMUP
     r = BenchResult("", label)
-    for _ in range(warmup):
+    for _ in range(wmup):
         try:
             fn()
         except Exception:
             pass
-    for _ in range(iterations):
+    for _ in range(iters):
         t0 = time.monotonic()
         try:
             fn()
@@ -287,71 +298,104 @@ def seed_es(batch_size: int = 2000):
 # ── Search queries ──────────────────────────────────────────────
 
 SEARCH_QUERIES = [
-    # (name, pgroonga_gql, es_body)
+    # (name, gql_query) — same query used for both backends
     (
         "match_all",
         '{ searchMaterials(query: "", limit: 100) { node { mat_no } } }',
-        {"query": {"match_all": {}}, "size": 100},
     ),
     (
         "term_single",
         '{ searchMaterials(query: "Premium", limit: 100) { node { mat_no } } }',
-        {"query": {"multi_match": {"query": "Premium", "fields": ["name", "status", "mat_no"]}}, "size": 100},
     ),
     (
         "term_multi_word",
         '{ searchMaterials(query: "Premium Benchmark", queryOperator: AND, limit: 100) { node { mat_no } } }',
-        {"query": {"multi_match": {"query": "Premium Benchmark", "operator": "AND", "fields": ["name", "status", "mat_no"]}}, "size": 100},
     ),
     (
         "term_or",
         '{ searchMaterials(query: "Premium Economy", limit: 100) { node { mat_no } } }',
-        {"query": {"multi_match": {"query": "Premium Economy", "operator": "OR", "fields": ["name", "status", "mat_no"]}}, "size": 100},
     ),
     (
         "filter_eq",
         '{ searchMaterials(query: "", filter: { status: { eq: "active" } }, limit: 100) { node { mat_no } } }',
-        {"query": {"term": {"status": "active"}}, "size": 100},
     ),
     (
         "filter_ne",
         '{ searchMaterials(query: "", filter: { status: { ne: "active" } }, limit: 100) { node { mat_no } } }',
-        {"query": {"bool": {"must_not": [{"term": {"status": "active"}}]}}, "size": 100},
     ),
     (
         "filter_in",
         '{ searchMaterials(query: "", filter: { status: { in: ["active", "discontinued"] } }, limit: 100) { node { mat_no } } }',
-        {"query": {"terms": {"status": ["active", "discontinued"]}}, "size": 100},
     ),
     (
         "query+filter",
         '{ searchMaterials(query: "Premium", filter: { status: { eq: "active" } }, limit: 100) { node { mat_no } } }',
-        {"query": {"bool": {"must": [{"multi_match": {"query": "Premium", "fields": ["name", "status", "mat_no"]}}, {"term": {"status": "active"}}]}}, "size": 100},
     ),
     (
         "deep_nested",
         '{ searchMaterials(query: "Construction", limit: 100) { node { mat_no material_features { feature_name feature_attributes { attr_name attr_value } } } } }',
-        {"query": {"multi_match": {"query": "Construction", "fields": ["material_features.feature_name", "material_features.description"]}}, "size": 100},
     ),
     (
         "paginated_deep",
         '{ searchMaterials(query: "Benchmark", limit: 20, offset: 5000) { node { mat_no } } }',
-        {"query": {"multi_match": {"query": "Benchmark", "fields": ["name"]}}, "size": 20, "from": 5000},
     ),
 ]
 
 
-def run_pgroonga_search(name: str, gql_query: str):
+def set_backend(backend: str):
+    """Swap the search backend in config.yaml and restart the app."""
+    import re
+    if _IN_DOCKER:
+        # Inside Docker: modify in-place (works on same filesystem)
+        subprocess.run(["bash", "-c",
+            f"sed -i.bak 's/backend: \\w*/backend: {backend}/' /app/config.yaml && rm -f /app/config.yaml.bak"
+        ], capture_output=True, timeout=10)
+        log(f"  Set backend to: {backend}")
+    else:
+        # From host: use docker cp to avoid overlay rename issues
+        subprocess.run(["docker", "compose", "cp", "app:/app/config.yaml", "/tmp/_bench_config.yaml"], timeout=10)
+        with open("/tmp/_bench_config.yaml", "r") as f:
+            content = f.read()
+        content = re.sub(r'backend:\s*\w+', f'backend: {backend}', content)
+        with open("/tmp/_bench_config.yaml", "w") as f:
+            f.write(content)
+        subprocess.run(["docker", "compose", "cp", "/tmp/_bench_config.yaml", "app:/app/config.yaml"], timeout=10)
+        subprocess.run(["docker", "compose", "restart", "app"], capture_output=True, timeout=30)
+        log(f"  Switched backend to: {backend}")
+    # Wait for app to be healthy
+    for _ in range(30):
+        try:
+            req = urllib.request.Request(GRAPHQL_URL, data=json.dumps({"query": "{ __typename }"}).encode(),
+                                        headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    log(f"  App ready")
+                    return
+        except Exception:
+            pass
+        time.sleep(1)
+    log(f"  WARNING: App may not be ready")
+    log(f"  Switched backend to: {backend}")
+    # Wait for app to be healthy
+    for _ in range(30):
+        try:
+            req = urllib.request.Request(GRAPHQL_URL, data=json.dumps({"query": "{ __typename }"}).encode(),
+                                        headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    log(f"  App ready")
+                    return
+        except Exception:
+            pass
+        time.sleep(1)
+    log(f"  WARNING: App may not be ready")
+
+
+def run_search(name: str, gql_query: str):
     resp = gql(gql_query)
     if resp.get("errors"):
         raise RuntimeError(f"GQL errors: {resp['errors']}")
     hits = resp.get("data", {}).get("searchMaterials") or []
-    return hits
-
-
-def run_es_search(name: str, es_body: dict):
-    result = es_request("materials/_search", method="POST", body=es_body)
-    hits = result.get("hits", {}).get("hits", [])
     return hits
 
 
@@ -381,7 +425,20 @@ def print_table(rows: list[dict]):
 
 
 def main():
-    divider("ES vs PGroonga — Head-to-Head Benchmark")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--rows", type=int, default=int(os.getenv("DATA_SIZE", "10000")))
+    parser.add_argument("--queries", type=int, default=int(os.getenv("ITERATIONS", "50")))
+    parser.add_argument("--warmup", type=int, default=int(os.getenv("WARMUP", "5")))
+    parser.add_argument("--backend", choices=["pgroonga", "elasticsearch", "both"], default="both",
+                        help="Which backend to benchmark (default: both, swaps config between runs)")
+    args = parser.parse_args()
+    global DATA_SIZE, ITERATIONS, WARMUP
+    DATA_SIZE = args.rows
+    ITERATIONS = args.queries
+    WARMUP = args.warmup
+
+    divider("ES vs PGroonga — Head-to-Head Benchmark (both through GraphQL)")
     log(f"  DATA_SIZE:     {DATA_SIZE}")
     log(f"  ITERATIONS:    {ITERATIONS}")
     log(f"  WARMUP:        {WARMUP}")
@@ -406,10 +463,6 @@ def main():
     pg_sample = run_sql("SELECT mat_no, name, status FROM materials WHERE mat_no = 'BM-0000001'")
     log(f"  PG sample: {pg_sample}")
 
-    es_sample_result = es_request("materials/_doc/BM-0000001")
-    es_sample_name = es_sample_result.get("_source", {}).get("name", "N/A")
-    log(f"  ES sample: BM-0000001 | {es_sample_name}")
-
     pg_count = count_bm()
     es_count = es_request("_count").get("count", 0)
     log(f"  PG BM materials: {pg_count}")
@@ -418,41 +471,37 @@ def main():
     # Quick correctness check
     pg_search = gql('{ searchMaterials(query: "Premium", limit: 5) { node { mat_no } } }')
     pg_hits = len((pg_search.get("data") or {}).get("searchMaterials") or [])
-    es_search = es_request("materials/_search", method="POST", body={
-        "query": {"multi_match": {"query": "Premium", "fields": ["name"]}}, "size": 5
-    })
-    es_hits = len(es_search.get("hits", {}).get("hits", []))
-    log(f"  Quick search 'Premium': PG={pg_hits} hits, ES={es_hits} hits")
+    log(f"  Quick search 'Premium': PG={pg_hits} hits")
 
-    # ── 5. Run benchmarks ──
-    divider("5. Search Benchmarks")
     all_rows = []
 
-    for name, pg_gql, es_body in SEARCH_QUERIES:
-        log(f"  Running: {name}")
-        pg_result = bench(f"pg_{name}", lambda g=pg_gql: run_pgroonga_search(name, g))
-        pg_result.backend = "PGroonga"
-        es_result = bench(f"es_{name}", lambda b=es_body: run_es_search(name, b))
-        es_result.backend = "Elasticsearch"
+    def run_benchmarks_for_backend(backend: str):
+        log(f"\n  Running {backend} benchmarks through GraphQL...")
+        for name, gql_query in SEARCH_QUERIES:
+            log(f"    {name}: ", end="")
+            result = bench(f"{backend}_{name}", lambda g=gql_query: run_search(name, g))
+            result.backend = backend
+            all_rows.append({"name": name, "backend": backend, "stats": result.stats()})
+            s = result.stats()
+            log(f"avg={s['avg']*1000:.1f}ms")
 
-        all_rows.append({"name": name, "backend": "PGroonga", "stats": pg_result.stats()})
-        all_rows.append({"name": name, "backend": "Elasticsearch", "stats": es_result.stats()})
+    if args.backend in ("pgroonga", "both"):
+        divider("5. PGroonga Benchmark")
+        set_backend("pgroonga")
+        run_benchmarks_for_backend("PGroonga")
 
-        pg_s = pg_result.stats()
-        es_s = es_result.stats()
-        if es_s["avg"] > 0:
-            ratio = pg_s["avg"] / es_s["avg"] if es_s["avg"] > 0 else 0
-            log(f"    PG avg={pg_s['avg']*1000:.1f}ms  ES avg={es_s['avg']*1000:.1f}ms  ratio={ratio:.2f}x")
-        else:
-            log(f"    PG avg={pg_s['avg']*1000:.1f}ms  ES avg=N/A")
+    if args.backend in ("elasticsearch", "both"):
+        divider("6. Elasticsearch Benchmark")
+        set_backend("elasticsearch")
+        run_benchmarks_for_backend("Elasticsearch")
 
-    # ── 6. Results ──
-    divider("6. Results")
+    # ── Results ──
+    divider("7. Results")
     print()
     print_table(all_rows)
 
-    # ── 7. Summary ──
-    divider("7. Summary")
+    # ── Summary ──
+    divider("8. Summary")
     pg_avgs = [r["stats"]["avg"] for r in all_rows if r["backend"] == "PGroonga" and r["stats"]["n"] > 0]
     es_avgs = [r["stats"]["avg"] for r in all_rows if r["backend"] == "Elasticsearch" and r["stats"]["n"] > 0]
     if pg_avgs and es_avgs:
@@ -466,6 +515,8 @@ def main():
             factor = 1 / overall if overall < 1 else overall
             log(f"  Overall: {faster} is {factor:.2f}x faster (geometric mean)")
 
+    # Restore pgroonga backend
+    set_backend("pgroonga")
     log("  Benchmark complete.")
 
 
