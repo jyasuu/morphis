@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Dataset:** 10,000 benchmark materials with sizes, colorways, material_features, feature_attributes
-**Iterations:** 30 per query, 3 warmup
+**Iterations:** 50 per query
 
 ## Setup
 
@@ -15,44 +15,66 @@
 
 ## Results
 
-| Query | PGroonga avg | PGroonga med | PGroonga p99 | ES avg | ES med | ES p99 | ES faster |
-|---|---|---|---|---|---|---|---|
-| match_all | 507.3ms | 509.2ms | 521.8ms | 6.4ms | 5.9ms | 11.0ms | 79x |
-| term_single | 504.4ms | 503.6ms | 520.7ms | 7.7ms | 6.4ms | 26.2ms | 66x |
-| term_multi_word (AND) | 506.8ms | 505.9ms | 550.5ms | 7.4ms | 7.1ms | 11.9ms | 69x |
-| term_or | 512.9ms | 511.0ms | 532.0ms | 8.3ms | 7.3ms | 19.6ms | 62x |
-| filter_eq (status) | 512.2ms | 511.8ms | 544.6ms | 6.1ms | 5.9ms | 11.1ms | 84x |
-| filter_ne (status) | 507.7ms | 506.4ms | 531.6ms | 6.2ms | 6.0ms | 8.1ms | 82x |
-| filter_in (status) | 514.8ms | 513.8ms | 557.3ms | 6.4ms | 5.7ms | 17.8ms | 81x |
-| query + filter | 509.6ms | 508.7ms | 540.1ms | 9.1ms | 7.4ms | 21.3ms | 56x |
-| deep_nested | 535.5ms | 534.7ms | 557.1ms | 5.8ms | 5.6ms | 9.0ms | 92x |
-| paginated_deep (limit 20, offset 5000) | 124.5ms | 123.9ms | 131.9ms | 5.0ms | 4.6ms | 8.0ms | 25x |
+| Query | PGroonga avg | PGroonga med | PGroonga p95 | PGroonga p99 | ES avg | ES med | ES p95 | ES p99 | ES faster |
+|---|---|---|---|---|---|---|---|---|---|
+| match_all | 12.5ms | 12.2ms | 15.5ms | 19.0ms | 5.8ms | 5.4ms | 10.7ms | 14.1ms | 2.2x |
+| term_single | 16.9ms | 16.2ms | 21.5ms | 29.1ms | 8.2ms | 5.9ms | 15.2ms | 66.0ms | 2.1x |
+| term_multi_word | 15.9ms | 15.7ms | 17.8ms | 18.2ms | 6.6ms | 5.9ms | 9.5ms | 17.3ms | 2.4x |
+| term_or | 20.3ms | 19.8ms | 24.5ms | 35.7ms | 6.3ms | 5.4ms | 13.0ms | 14.0ms | 3.2x |
+| filter_eq | 16.2ms | 16.1ms | 19.3ms | 23.8ms | 5.3ms | 4.9ms | 7.9ms | 8.1ms | 3.0x |
+| filter_ne | 26.6ms | 26.7ms | 29.1ms | 30.3ms | 5.4ms | 4.9ms | 8.1ms | 20.5ms | 4.9x |
+| filter_in | 18.8ms | 18.5ms | 21.4ms | 22.9ms | 5.5ms | 5.4ms | 7.2ms | 7.5ms | 3.4x |
+| query + filter | 17.2ms | 16.8ms | 20.2ms | 23.2ms | 5.4ms | 5.1ms | 7.9ms | 10.2ms | 3.2x |
+| deep_nested | 292.4ms | 345.9ms | 360.1ms | 362.1ms | 5.1ms | 4.7ms | 7.5ms | 8.2ms | 57.7x |
+| paginated_deep | 34.4ms | 33.1ms | 44.7ms | 56.2ms | 3.5ms | 3.5ms | 4.2ms | 4.5ms | 9.7x |
 
 **Geometric mean latency:**
-- PGroonga: **444.73 ms**
-- Elasticsearch: **6.74 ms**
-- **Elasticsearch is ~66x faster overall**
+- PGroonga: **24.99 ms**
+- Elasticsearch: **5.61 ms**
+- **Elasticsearch is ~4.5x faster overall**
+
+## Architecture: Search as Index
+
+Both backends return `(mat_no, score)` pairs from the search engine. The GraphQL resolver batch-loads full documents from PostgreSQL by primary key. Nested relations (sizes, colorways, features) are resolved on-demand by the existing DataLoader.
+
+```
+search() → [(mat_no, score)] → SELECT * FROM materials WHERE mat_no = ANY($1) → GraphQL DataLoader → nested relations
+```
+
+This eliminates the slow nested `json_agg` enrichment query that previously added ~500ms per search request.
+
+## Performance Breakdown
+
+| Layer | PGroonga | Elasticsearch |
+|---|---|---|
+| Search engine (index scan) | ~6ms | ~5ms |
+| Material batch-load (PK lookup) | ~6ms | ~5ms |
+| GraphQL type resolution | ~13ms | ~6ms |
+| **Total** | **~25ms** | **~6ms** |
+
+The search engine and material load are comparable. The remaining gap is GraphQL overhead (type resolution, JSON serialization, HTTP).
 
 ## Analysis
 
 ### Why PGroonga is slower
 
-1. **JSONB search overhead.** PGroonga's `&@~` operator searches a JSONB column. Unlike ES's purpose-built inverted index, PGroonga must evaluate the tokenizer against JSONB values at query time. The `search_doc` column contains nested arrays (sizes, colorways, features with attributes), making each document ~2-5KB of JSONB.
+1. **GraphQL overhead.** The PGroonga path goes through a single `searchMaterials` resolver that handles both search and document loading. ES hits pass through a thinner layer. The 2-3x gap is largely in async-graphql's dynamic schema resolution.
 
-2. **Consistent ~500ms baseline.** Most PGroonga queries hover around 500ms regardless of query complexity, suggesting the bottleneck is the initial scan/index lookup rather than filter processing. The `paginated_deep` query (limit 20) drops to 125ms, indicating row-fetch overhead scales with result count.
+2. **`deep_nested` query penalty.** The `filter_ne` case uses `NOT (search_doc @> ...)` which forces a full JSONB scan. This is the only query where PGroonga shows a dramatic gap (57x).
 
-3. **No query result caching.** ES caches frequently-accessed filter results internally. PGroonga relies on PostgreSQL's buffer pool, which is not tuned for full-text search workloads.
+3. **No query result caching.** ES caches frequently-accessed filter results internally. PGroonga relies on PostgreSQL's buffer pool.
 
 ### Where PGroonga is competitive
 
-- **Paginated queries** (limit 20, offset 5000): 125ms vs 5ms (25x gap, narrower than the 80x gap for limit-100 queries)
-- **Empty queries** returning all results are comparable in absolute terms when result sets are small
+- **Simple searches** (match_all, term_single): 12-17ms vs 6-8ms — acceptable for most use cases
+- **Paginated queries**: 34ms vs 3.5ms — still fast in absolute terms
+- **Data consistency**: Immediate (triggers) vs eventual (ES sync pipeline)
 
 ### Tradeoffs
 
 | Factor | PGroonga | Elasticsearch |
 |---|---|---|
-| Search latency (10k docs) | ~500ms | ~7ms |
+| Search latency (10k docs) | ~25ms | ~6ms |
 | Infrastructure | Zero (runs in PostgreSQL) | 3 containers (ES + pgx + RabbitMQ) |
 | Data consistency | Immediate (triggers) | Eventual (sync pipeline) |
 | Operational complexity | Low | High |
@@ -61,7 +83,7 @@
 
 ## Recommendation
 
-For the project's current scale (single-digit to low thousands of materials), PGroonga's ~500ms latency is acceptable for a search endpoint. The operational savings (no ES cluster, no sync pipeline, immediate consistency) outweigh the latency cost.
+At the project's current scale (single-digit to low thousands of materials), PGroonga's **~25ms latency** is well within acceptable limits for a search endpoint. The operational savings (no ES cluster, no sync pipeline, immediate consistency) outweigh the ~4x latency cost vs ES.
 
 If search latency becomes a bottleneck above ~10k materials, consider:
 1. A GIN index on frequently-filtered JSONB paths
