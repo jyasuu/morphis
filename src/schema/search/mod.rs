@@ -8,7 +8,7 @@ mod contract;
 pub(crate) use operator::{build_search_filter_input, nested_filter_inputs, operator_inputs, query_operator_enum};
 pub(crate) use row_filter::apply_row_filters;
 
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, Object, TypeRef, ValueAccessor};
@@ -18,7 +18,7 @@ use sqlx::{Pool, Postgres};
 
 use identity_auth::circuit_breaker::CircuitBreaker;
 
-use crate::config::{Config, RowFilterConfig, SearchIndexConfig, SearchJoinConfig};
+use crate::config::{Config, RowFilterConfig, SearchIndexConfig};
 
 use super::db;
 use super::util::{capitalize_first, gql_val};
@@ -126,13 +126,38 @@ pub(crate) fn add_search_field(
                         &row_filters,
                     )
                     .await?;
+                    if results.is_empty() {
+                        return Ok(Some(FieldValue::list(Vec::<FieldValue>::new())));
+                    }
+                    let mat_nos: Vec<String> = results.iter().map(|(m, _)| m.clone()).collect();
+                    let material_sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text \
+                        FROM (SELECT * FROM materials WHERE mat_no = ANY($1)) t";
+                    let material_rows: Vec<serde_json::Value> = db::fetch_rows(
+                        &service.pool,
+                        material_sql,
+                        &[db::Bind::Array(&mat_nos)],
+                    )
+                    .await
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(error = %e.message, "PG search material fetch failed");
+                        vec![]
+                    });
+                    let mut doc_map: std::collections::HashMap<String, serde_json::Value> =
+                        std::collections::HashMap::new();
+                    for doc in &material_rows {
+                        if let Some(mno) = doc.get("mat_no").and_then(|v| v.as_str()) {
+                            doc_map.insert(mno.to_string(), doc.clone());
+                        }
+                    }
                     let items: Vec<FieldValue> = results
                         .into_iter()
-                        .map(|(source, score)| {
-                            FieldValue::value(gql_val(serde_json::json!({
-                                "node": source,
-                                "score": score,
-                            })))
+                        .filter_map(|(mat_no, score)| {
+                            doc_map.remove(&mat_no).map(|doc| {
+                                FieldValue::value(gql_val(serde_json::json!({
+                                    "node": doc,
+                                    "score": score,
+                                })))
+                            })
                         })
                         .collect();
                     Ok(Some(FieldValue::list(items)))
@@ -213,7 +238,7 @@ pub(crate) async fn search(
     offset: usize,
     identity: Option<&Identity>,
     row_filters: &[RowFilterConfig],
-) -> Result<Vec<(serde_json::Value, f64)>, async_graphql::Error> {
+) -> Result<Vec<(String, f64)>, async_graphql::Error> {
     let backend = SearchBackend::from_config(index_cfg.backend.as_deref());
 
     match backend {
@@ -242,7 +267,7 @@ async fn search_pg(
     offset: usize,
     identity: Option<&Identity>,
     row_filters: &[RowFilterConfig],
-) -> Result<Vec<(serde_json::Value, f64)>, async_graphql::Error> {
+) -> Result<Vec<(String, f64)>, async_graphql::Error> {
     tracing::debug!(
         index = %index_cfg.index,
         query = %query_str.chars().take(80).collect::<String>(),
@@ -324,47 +349,7 @@ async fn search_pg(
         return Ok(Vec::new());
     }
 
-    // Fetch full materials via DataLoader (reuse existing relation loading)
-    let mat_nos: Vec<String> = hits.iter().map(|(m, _)| m.clone()).collect();
-    // Use direct SQL query to fetch materials with nested relations
-    let material_sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text AS __doc FROM ( \
-         SELECT m.mat_no, m.name, m.status, m.tenant_id, \
-         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', s.id, 'size_code', s.size_code, 'mat_no', s.mat_no, 'name', s.name)), '[]'::jsonb) FROM sizes s WHERE s.mat_no = m.mat_no) AS sizes, \
-         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', c.id, 'colorway_code', c.colorway_code, 'mat_no', c.mat_no, 'name', c.name, 'hex', c.hex)), '[]'::jsonb) FROM colorways c WHERE c.mat_no = m.mat_no) AS colorways, \
-         (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', mf.id, 'feature_id', mf.id, 'mat_no', mf.mat_no, 'feature_name', mf.feature_name, 'description', mf.description, 'feature_attributes', \
-           (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', fa.id, 'feature_id', fa.feature_id, 'attr_name', fa.attr_name, 'attr_value', fa.attr_value)), '[]'::jsonb) FROM feature_attributes fa WHERE fa.feature_id = mf.id) \
-         )), '[]'::jsonb) FROM material_features mf WHERE mf.mat_no = m.mat_no) AS material_features \
-         FROM materials m WHERE m.mat_no = ANY($1) \
-     ) t".to_string();
-
-    let material_rows: Vec<serde_json::Value> = db::fetch_rows(
-        &service.pool,
-        &material_sql,
-        &[db::Bind::Array(&mat_nos)],
-    )
-    .await
-    .unwrap_or_else(|e| {
-        tracing::warn!(error = %e.message, "PG search material fetch failed");
-        vec![]
-    });
-
-    // Build mat_no -> document map
-    let mut doc_map: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
-    for doc in &material_rows {
-        if let Some(mno) = doc.get("mat_no").and_then(|v| v.as_str()) {
-            doc_map.insert(mno.to_string(), doc.clone());
-        }
-    }
-
-    // Pair documents with scores
-    let results: Vec<(serde_json::Value, f64)> = hits
-        .into_iter()
-        .filter_map(|(mat_no, score)| {
-            doc_map.remove(&mat_no).map(|doc| (doc, score))
-        })
-        .collect();
-
-    Ok(results)
+    Ok(hits)
 }
 
 /// Escape special characters in user input before passing to PGroonga's
@@ -405,7 +390,7 @@ async fn search_es(
     offset: usize,
     identity: Option<&Identity>,
     row_filters: &[RowFilterConfig],
-) -> Result<Vec<(serde_json::Value, f64)>, async_graphql::Error> {
+) -> Result<Vec<(String, f64)>, async_graphql::Error> {
     tracing::debug!(
         index = %index_cfg.index,
         query = %query_str.chars().take(80).collect::<String>(),
@@ -469,21 +454,16 @@ async fn search_es(
 
     let hits = body["hits"]["hits"].as_array().cloned().unwrap_or_default();
 
-    let mut sources: Vec<serde_json::Value> = hits
+    let results: Vec<(String, f64)> = hits
         .iter()
-        .map(|hit| {
-            hit.get("_source")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null)
+        .filter_map(|hit| {
+            let id = hit.get("_id")?.as_str()?;
+            let score = hit.get("_score").and_then(serde_json::Value::as_f64).unwrap_or(0.0);
+            Some((id.to_string(), score))
         })
         .collect();
-    let scores: Vec<f64> = hits
-        .iter()
-        .map(|hit| hit.get("_score").and_then(serde_json::Value::as_f64).unwrap_or(0.0))
-        .collect();
 
-    es_batch_enrich(&service.pool, &mut sources, &index_cfg.join_fields).await?;
-    Ok(sources.into_iter().zip(scores).collect())
+    Ok(results)
 }
 
 fn collect_searchable_fields(cfg: &SearchIndexConfig) -> Vec<String> {
@@ -500,88 +480,6 @@ fn collect_searchable_fields(cfg: &SearchIndexConfig) -> Vec<String> {
         }
     }
     fields
-}
-
-/// Normalise a JSON scalar to its string key form. FK columns come back from
-/// `json_agg(row_to_json(t))` as JSON numbers when the column is `int`, so key
-/// extraction must not rely on `as_str()` (which returns `None` for numbers and
-/// would wipe nested children to `[]`).
-fn key_value(v: &serde_json::Value) -> Option<String> {
-    if let Some(s) = v.as_str() {
-        Some(s.to_string())
-    } else {
-        v.as_i64().map(|n| n.to_string())
-    }
-}
-
-/// Compensation layer: re-fetches child rows from Postgres and re-attaches them
-/// to search hits so returned documents stay fresh even when the ES document is
-/// stale. Kept until the P6 document contract is stable and child-table writes
-/// re-index the parent (db/triggers.sql + contract/materials fixtures prove the
-/// pipeline keeps documents current); removable once that is proven by the
-/// integration suite.
-fn es_batch_enrich<'a>(
-    pool: &'a Pool<Postgres>,
-    sources: &'a mut [serde_json::Value],
-    join_fields: &'a [SearchJoinConfig],
-) -> Pin<Box<dyn Future<Output = Result<(), async_graphql::Error>> + Send + 'a>> {
-    Box::pin(async move {
-        for jf in join_fields {
-            if sources.is_empty() {
-                continue;
-            }
-
-            let keys: Vec<String> = sources
-                .iter()
-                .filter_map(|s| {
-                    s.get(&jf.local_field)
-                        .and_then(key_value)
-                        .filter(|v| !v.is_empty())
-                })
-                .collect();
-
-            if keys.is_empty() {
-                for source in sources.iter_mut() {
-                    if let Some(obj) = source.as_object_mut() {
-                        obj.insert(jf.index_field.clone(), serde_json::Value::Array(vec![]));
-                    }
-                }
-                continue;
-            }
-
-            let sql = format!(
-                "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {} WHERE {}::text = ANY($1)) t",
-                jf.table, jf.foreign_field
-            );
-            let mut all_children: Vec<serde_json::Value> =
-                db::fetch_rows(pool, &sql, &[db::Bind::Array(&keys)])
-                    .await
-                    .unwrap_or_else(|e| {
-                        tracing::warn!(error = %e.message, "ES batch enrichment query failed");
-                        vec![]
-                    });
-
-            if !jf.join_fields.is_empty() {
-                es_batch_enrich(pool, &mut all_children, &jf.join_fields).await?;
-            }
-
-            let mut grouped: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
-            for child in &all_children {
-                if let Some(v) = child.get(&jf.foreign_field).and_then(key_value) {
-                    grouped.entry(v).or_default().push(child.clone());
-                }
-            }
-
-            for source in sources.iter_mut() {
-                let key = source.get(&jf.local_field).and_then(key_value).unwrap_or_default();
-                let children = grouped.remove(&key).unwrap_or_default();
-                if let Some(obj) = source.as_object_mut() {
-                    obj.insert(jf.index_field.clone(), serde_json::Value::Array(children));
-                }
-            }
-        }
-        Ok(())
-    })
 }
 
 #[cfg(test)]
@@ -608,14 +506,6 @@ mod tests {
                     .collect()
             })
             .unwrap_or_default()
-    }
-
-    #[test]
-    fn key_value_normalises_strings_and_numbers() {
-        assert_eq!(key_value(&serde_json::json!("M001")), Some("M001".to_string()));
-        assert_eq!(key_value(&serde_json::json!(7)), Some("7".to_string()));
-        assert_eq!(key_value(&serde_json::json!(-3)), Some("-3".to_string()));
-        assert_eq!(key_value(&serde_json::Value::Null), None);
     }
 
     async fn run(schema: &Schema, query: &str) -> async_graphql::Response {
