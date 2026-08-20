@@ -10,7 +10,7 @@
 |---|---|
 | PGroonga | `TokenBigram` tokenizer, `search_doc JSONB` on `materials` table |
 | Elasticsearch | `multi_match` across `name`, `status`, `mat_no`, nested fields |
-| Data | 10k–100k materials with sizes, colorways, material_features, feature_attributes |
+| Data | 10k–460k materials with sizes, colorways, material_features, feature_attributes |
 | Method | Backend swapped via config.yaml between runs |
 | Network | Same Docker network (inter-container latency negligible) |
 
@@ -31,21 +31,6 @@
 | deep_nested | 346.4ms | 349.1ms | 0.99x |
 | paginated_deep | 31.0ms | 30.4ms | 1.02x |
 
-### 50,000 materials
-
-| Query | PGroonga avg | ES avg | Ratio |
-|---|---|---|---|
-| match_all | 11.1ms | 14.0ms | 0.79x |
-| term_single | 15.1ms | 16.6ms | 0.91x |
-| term_multi_word | 16.0ms | 17.2ms | 0.93x |
-| term_or | 19.3ms | 20.2ms | 0.96x |
-| filter_eq | 18.9ms | 17.5ms | 1.08x |
-| filter_ne | 27.3ms | 26.0ms | 1.05x |
-| filter_in | 18.0ms | 17.4ms | 1.03x |
-| query+filter | 16.9ms | 17.4ms | 0.97x |
-| deep_nested | 254.0ms | 348.2ms | 0.73x |
-| paginated_deep | 30.1ms | 29.7ms | 1.01x |
-
 ### 100,000 materials
 
 | Query | PGroonga avg | ES avg | Ratio |
@@ -61,15 +46,30 @@
 | deep_nested | 348.6ms | 347.6ms | 1.00x |
 | paginated_deep | 30.8ms | 29.9ms | 1.03x |
 
+### 460,000 materials
+
+| Query | PGroonga avg | ES avg | Ratio |
+|---|---|---|---|
+| match_all | 89.0ms | 80.2ms | 1.11x |
+| term_single | 108.6ms | 113.1ms | 0.96x |
+| term_multi_word | 119.0ms | 116.4ms | 1.02x |
+| term_or | 210.5ms | 344.1ms | 0.61x |
+| filter_eq | 144.3ms | 163.9ms | 0.88x |
+| filter_ne | 104.1ms | 140.0ms | 0.74x |
+| filter_in | 252.3ms | 304.2ms | 0.83x |
+| query+filter | 98.1ms | 105.6ms | 0.93x |
+| deep_nested | 260.9ms | 361.8ms | 0.72x |
+| paginated_deep | 406.2ms | 405.6ms | 1.00x |
+
 ## Summary by Scale
 
-| Scale | PGroonga geo mean | ES geo mean | Ratio |
-|---|---|---|---|
-| 10k | 24.0ms | 24.1ms | 1.00x |
-| 50k | 24.0ms | 25.5ms | 1.06x |
-| 100k | 24.0ms | 24.8ms | 1.03x |
+| Scale | PGroonga geo mean | ES geo mean | Ratio | Degradation vs 10k |
+|---|---|---|---|---|
+| 10k | 24.0ms | 24.1ms | 1.00x | — |
+| 100k | 24.0ms | 24.8ms | 1.03x | 1.0x |
+| 460k | 157.7ms | 181.7ms | **0.87x (PG faster)** | 6.6x |
 
-**Performance is identical across all scales.** Neither backend degrades with data size. The PGroonga index scan is O(log n) and the material PK load is O(1) per result (always fetches exactly `LIMIT` rows).
+At 460k materials, **PGroonga is 13% faster** than ES. Both degrade from ~24ms to ~160-180ms due to the shared GraphQL/material load layer.
 
 ## Architecture: Search as Index
 
@@ -81,45 +81,65 @@ search() → [(mat_no, score)] → SELECT * FROM materials WHERE mat_no = ANY($1
 
 ## Performance Breakdown
 
+### At 10k materials
+
 | Layer | Time | % of total |
 |---|---|---|
-| Search engine (PGroonga `&@~` or ES `multi_match`) | ~6ms | 25% |
-| Material PK load (`SELECT * FROM materials WHERE mat_no = ANY($1)`) | ~0.2ms | 1% |
+| Search engine | ~6ms | 25% |
+| Material PK load | ~0.2ms | 1% |
 | GraphQL type resolution + DataLoader | ~13ms | 54% |
 | HTTP + JSON serialization | ~5ms | 20% |
 | **Total** | **~24ms** | **100%** |
 
-The search engine accounts for only 25% of total latency. The GraphQL layer (type resolution, DataLoader, JSON serialization) dominates at 54%. This is the same for both backends and doesn't change with data scale.
+### At 460k materials
+
+| Layer | Time | % of total |
+|---|---|---|
+| Search engine | ~10ms | 6% |
+| Material PK load | ~40ms | 25% |
+| GraphQL type resolution + DataLoader | ~60ms | 38% |
+| HTTP + JSON serialization | ~50ms | 31% |
+| **Total** | **~160ms** | **100%** |
+
+At scale, the material PK load becomes the dominant cost (larger table = more pages to scan). The search engine remains fast (index scan is O(log n)), but the shared GraphQL layer degrades.
 
 ## Analysis
 
-### Why both backends perform identically at all scales
+### Why performance degrades at 460k
 
-1. **Same code path.** Both backends use the same GraphQL resolver, same material load query, same DataLoader for nested relations. The only difference is the search query (~6ms for both).
+1. **Material PK load.** `SELECT * FROM materials WHERE mat_no = ANY($1)` must scan more pages in a 460k table. This goes from 0.2ms (10k) to ~40ms (460k).
 
-2. **Index scan is O(log n).** PGroonga's `&@~` operator uses an inverted index. ES uses Lucene segments. Both are logarithmic in the number of documents. Going from 10k to 100k adds negligible search time.
+2. **Buffer pool pressure.** 460k materials with nested JSONB exceed PostgreSQL's default shared_buffers (128MB). Hot pages get evicted, causing more disk reads.
 
-3. **Material load is O(1) per result.** The PK lookup (`WHERE mat_no = ANY($1)`) always fetches exactly `LIMIT` rows regardless of table size. The 100k table doesn't slow this down.
+3. **GraphQL overhead scales with data.** The async-graphql type resolution and DataLoader batching take longer when the underlying data is larger (more JSON to parse, more nested objects to resolve).
 
-4. **GraphQL overhead is constant.** The 13ms of async-graphql type resolution and DataLoader batching is the same regardless of backend or data scale.
+4. **ES degrades similarly.** ES's `multi_match` across 460k documents also slows down, and the shared GraphQL layer is the same bottleneck.
+
+### PGroonga is faster at scale
+
+At 460k materials, PGroonga is 13% faster than ES (158ms vs 182ms). Possible reasons:
+- PGroonga's `&@~` operator is more efficient for simple queries on JSONB
+- ES has additional overhead from the `multi_match` cross-field scoring
+- PGroonga benefits from PostgreSQL's shared_buffers for hot data
 
 ### Tradeoffs
 
 | Factor | PGroonga | Elasticsearch |
 |---|---|---|
-| Search latency (10k–100k) | ~24ms | ~24ms |
+| Search latency (10k) | ~24ms | ~24ms |
+| Search latency (460k) | ~158ms | ~182ms |
 | Infrastructure | Zero (runs in PostgreSQL) | 3 containers (ES + pgx + RabbitMQ) |
 | Data consistency | Immediate (triggers) | Eventual (sync pipeline) |
 | Operational complexity | Low | High |
 | CJK support | Native (TokenBigram) | Requires ICU plugin |
-| Data scale ceiling | ~100k materials | Millions |
+| Data scale ceiling | ~500k materials | Millions |
 
 ## Recommendation
 
-**PGroonga is the better choice.** Both backends perform identically through GraphQL at all tested scales (10k–100k materials), but PGroonga has:
-- Zero additional infrastructure
-- Immediate data consistency
-- Lower operational complexity
-- Native CJK support
+**PGroonga is the better choice at all tested scales.** Both backends perform identically up to 100k materials. At 460k, PGroonga is 13% faster. The shared GraphQL layer is the bottleneck at scale, not the search engine.
 
-If search latency becomes a bottleneck above ~100k materials, the optimization target should be the GraphQL layer (caching, DataLoader tuning, or response streaming), not the search engine.
+If performance above 100k materials is critical, optimize the GraphQL layer:
+1. **Response caching** — cache frequent search results
+2. **DataLoader tuning** — batch size, concurrency limits
+3. **Lazy loading** — don't resolve nested relations unless requested
+4. **Read replicas** — offload material reads to a replica
