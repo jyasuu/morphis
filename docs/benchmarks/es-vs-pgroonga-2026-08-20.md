@@ -45,30 +45,42 @@ This eliminates the slow nested `json_agg` enrichment query that previously adde
 
 ## Performance Breakdown
 
-| Layer | PGroonga | Elasticsearch |
-|---|---|---|
-| Search engine (index scan) | ~6ms | ~5ms |
-| Material batch-load (PK lookup) | ~6ms | ~5ms |
-| GraphQL type resolution | ~13ms | ~6ms |
-| **Total** | **~25ms** | **~6ms** |
+The benchmark compares **GraphQL endpoint** (PGroonga) vs **direct ES REST API** (ES), which is asymmetric. Here's the actual breakdown:
 
-The search engine and material load are comparable. The remaining gap is GraphQL overhead (type resolution, JSON serialization, HTTP).
+| Component | PGroonga | ES | Notes |
+|---|---|---|---|
+| Search engine (raw) | 10.7ms | 3ms | PGroonga `&@~` vs ES inverted index |
+| Material PK load | 0.2ms | 0ms | `SELECT * FROM materials WHERE mat_no = ANY($1)` |
+| HTTP + JSON overhead | ~1ms | ~2.6ms | Network + serialization |
+| GraphQL resolution | ~13ms | 0ms | PG path goes through async-graphql |
+| **Total (measured)** | **25ms** | **5.6ms** | **4.5x gap** |
+
+If both backends went through GraphQL, the gap would be **~3.6x** (engine-only comparison).
+
+### Why PGroonga search engine is ~3.6x slower than ES
+
+1. **JSONB evaluation overhead.** PGroonga's `&@~` operator searches a JSONB column. Unlike ES's purpose-built inverted index (memory-mapped, segment-based), PGroonga must evaluate the tokenizer against JSONB values at query time. The `search_doc` column contains nested arrays (sizes, colorways, features with attributes), making each document ~2-5KB of JSONB.
+
+2. **No segment-level caching.** ES uses Lucene segments with hot caches for frequently accessed inverted lists. PGroonga relies on PostgreSQL's buffer pool, which is not tuned for full-text search workloads.
+
+3. **Sort overhead.** PGroonga returns `(mat_no, score)` pairs that must be sorted by score. ES returns pre-sorted results from the index.
 
 ## Analysis
 
 ### Why PGroonga is slower
 
-1. **GraphQL overhead.** The PGroonga path goes through a single `searchMaterials` resolver that handles both search and document loading. ES hits pass through a thinner layer. The 2-3x gap is largely in async-graphql's dynamic schema resolution.
+1. **Search engine gap (3.6x).** PGroonga's JSONB `&@~` operator vs ES's purpose-built inverted index. ES uses Lucene segments with hot caches; PGroonga evaluates against JSONB at query time.
 
-2. **`deep_nested` query penalty.** The `filter_ne` case uses `NOT (search_doc @> ...)` which forces a full JSONB scan. This is the only query where PGroonga shows a dramatic gap (57x).
+2. **Asymmetric benchmark.** PG queries go through GraphQL (search → load → resolve → serialize). ES queries hit the REST API directly. This adds ~13ms GraphQL overhead to PG but not ES.
 
-3. **No query result caching.** ES caches frequently-accessed filter results internally. PGroonga relies on PostgreSQL's buffer pool.
+3. **`deep_nested` query penalty.** The `filter_ne` case uses `NOT (search_doc @> ...)` which forces a full JSONB scan. This is the only query where PGroonga shows a dramatic gap (57x).
 
 ### Where PGroonga is competitive
 
-- **Simple searches** (match_all, term_single): 12-17ms vs 6-8ms — acceptable for most use cases
+- **Simple searches** (match_all, term_single): 12-17ms vs 5-8ms — acceptable for most use cases
 - **Paginated queries**: 34ms vs 3.5ms — still fast in absolute terms
 - **Data consistency**: Immediate (triggers) vs eventual (ES sync pipeline)
+- **Infrastructure**: Zero extra containers vs 3 (ES + pgx + RabbitMQ)
 
 ### Tradeoffs
 
