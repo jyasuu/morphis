@@ -101,6 +101,24 @@ fn scalar_type_name(col_type: &ColumnType) -> &'static str {
     }
 }
 
+/// Every SQL parameter is bound as text (see `db::Bind`), so any comparison
+/// or assignment against a non-text column needs an explicit cast — Postgres
+/// has no implicit `text -> int4/int8/float8/bool` coercion (verified: it
+/// fails with "operator does not exist: integer = text" otherwise). We cast
+/// to the *widest* type in each family (`bigint`, `boolean`) rather than a
+/// narrower one so this works uniformly across int4/int8-ish columns without
+/// needing the exact declared width — Postgres indexes on int4 columns are
+/// still used against a `bigint`-cast literal (int4/int8 share a btree
+/// opfamily), so this doesn't cost an index scan.
+fn sql_cast(col_type: &ColumnType) -> &'static str {
+    match col_type {
+        ColumnType::Int | ColumnType::Int64 => "::bigint",
+        ColumnType::Float => "::double precision",
+        ColumnType::Boolean => "::boolean",
+        _ => "",
+    }
+}
+
 // ── Object type (columns + relations) ─────────────────────────
 
 fn related_pk_order(rel_cfg: &TableConfig) -> String {
@@ -454,9 +472,10 @@ fn create_column_binds(
     columns: &[ColumnConfig],
     input: &ObjectAccessor,
     auto_set_columns: &[&str],
-) -> (Vec<String>, Vec<String>) {
+) -> (Vec<String>, Vec<String>, Vec<&'static str>) {
     let mut out_columns = Vec::new();
     let mut params = Vec::new();
+    let mut casts = Vec::new();
     for col in columns {
         if auto_set_columns.contains(&col.name.as_str()) {
             continue;
@@ -467,9 +486,10 @@ fn create_column_binds(
             }
             out_columns.push(col.name.clone());
             params.push(value_as_string(&val));
+            casts.push(sql_cast(&col.col_type));
         }
     }
-    (out_columns, params)
+    (out_columns, params, casts)
 }
 
 /// For each column present in the update input: `(column, param)` where `None`
@@ -478,15 +498,16 @@ fn create_column_binds(
 fn update_column_binds(
     columns: &[ColumnConfig],
     input: &ObjectAccessor,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<(String, Option<String>, &'static str)> {
     columns
         .iter()
         .filter_map(|col| {
             let val = input.get(&col.name)?;
+            let cast = sql_cast(&col.col_type);
             if val.is_null() {
-                Some((col.name.clone(), None))
+                Some((col.name.clone(), None, cast))
             } else {
-                Some((col.name.clone(), Some(value_as_string(&val))))
+                Some((col.name.clone(), Some(value_as_string(&val)), cast))
             }
         })
         .collect()
@@ -523,10 +544,12 @@ fn build_create_field(name_caps: &str, table_config: &TableConfig) -> Field {
 
                 let mut columns = Vec::new();
                 let mut params = Vec::new();
-                let (new_columns, new_params) =
+                let mut casts = Vec::new();
+                let (new_columns, new_params, new_casts) =
                     create_column_binds(&table_config.columns, &obj, &auto_set_columns);
                 columns.extend(new_columns);
                 params.extend(new_params);
+                casts.extend(new_casts);
 
                 if let Ok(identity) = ctx.data::<Identity>() {
                     for rf in &row_filters {
@@ -536,12 +559,16 @@ fn build_create_field(name_caps: &str, table_config: &TableConfig) -> Field {
                         {
                             columns.push(column.clone());
                             params.push(val.to_string());
+                            // Row-filter identity values (tenant IDs, user IDs, etc.) are
+                            // always sourced from string headers, so no cast is needed.
+                            casts.push("");
                         }
                     }
                 }
 
-                let placeholders: Vec<String> =
-                    (1..=params.len()).map(|i| format!("${}", i)).collect();
+                let placeholders: Vec<String> = (1..=params.len())
+                    .map(|i| format!("${}{}", i, casts[i - 1]))
+                    .collect();
 
                 let sql = format!(
                     "WITH ins AS (INSERT INTO {} ({}) VALUES ({}) RETURNING *) SELECT row_to_json(ins)::text FROM ins",
@@ -607,11 +634,11 @@ fn build_update_field(
                 let mut set_clauses = Vec::new();
                 let mut params = Vec::new();
 
-                for (column, param) in update_column_binds(&table_config.columns, &obj) {
+                for (column, param, cast) in update_column_binds(&table_config.columns, &obj) {
                     match param {
                         None => set_clauses.push(format!("{column} = NULL")),
                         Some(v) => {
-                            set_clauses.push(format!("{column} = ${}", params.len() + 1));
+                            set_clauses.push(format!("{column} = ${}{cast}", params.len() + 1));
                             params.push(v);
                         }
                     }
@@ -781,13 +808,19 @@ fn build_filter_clauses(
         if !allowed_columns.contains(&key) {
             continue;
         }
-        let param = match val {
-            FilterValue::String(s) => s,
-            FilterValue::Int(n) => n.to_string(),
-            FilterValue::Float(f) => f.to_string(),
-            FilterValue::Bool(b) => b.to_string(),
+        // The GraphQL filter input types each field by the column's own
+        // ColumnType (see build_filter_input), so the FilterValue variant
+        // here already reflects the target column's type — cast the bound
+        // text parameter to match, same as pk_where_clauses/sql_cast do for
+        // PK lookups and create/update, or Postgres rejects the comparison
+        // outright (e.g. "operator does not exist: integer = text").
+        let (param, cast) = match val {
+            FilterValue::String(s) => (s, ""),
+            FilterValue::Int(n) => (n.to_string(), "::bigint"),
+            FilterValue::Float(f) => (f.to_string(), "::double precision"),
+            FilterValue::Bool(b) => (b.to_string(), "::boolean"),
         };
-        clauses.push(format!("{} = ${}", key, params.len() + 1));
+        clauses.push(format!("{} = ${}{}", key, params.len() + 1, cast));
         params.push(param);
     }
 
@@ -916,9 +949,13 @@ mod tests {
 
     #[test]
     fn filter_clauses_int() {
+        // Postgres has no implicit text -> integer cast for `=`, so the
+        // bound text parameter needs an explicit cast or every numeric
+        // filter fails at runtime with "operator does not exist: integer =
+        // text" (verified against a live Postgres instance).
         let pairs = vec![("feature_id".to_string(), FilterValue::Int(3))];
         let (sql, params) = build_filter_clauses(pairs, &allowed(&["feature_id"]));
-        assert_eq!(sql, "feature_id = $1");
+        assert_eq!(sql, "feature_id = $1::bigint");
         assert_eq!(params, vec!["3"]);
     }
 
@@ -926,7 +963,7 @@ mod tests {
     fn filter_clauses_float() {
         let pairs = vec![("price".to_string(), FilterValue::Float(3.5))];
         let (sql, params) = build_filter_clauses(pairs, &allowed(&["price"]));
-        assert_eq!(sql, "price = $1");
+        assert_eq!(sql, "price = $1::double precision");
         assert_eq!(params, vec!["3.5"]);
     }
 
@@ -934,7 +971,7 @@ mod tests {
     fn filter_clauses_bool() {
         let pairs = vec![("active".to_string(), FilterValue::Bool(true))];
         let (sql, params) = build_filter_clauses(pairs, &allowed(&["active"]));
-        assert_eq!(sql, "active = $1");
+        assert_eq!(sql, "active = $1::boolean");
         assert_eq!(params, vec!["true"]);
     }
 
@@ -946,7 +983,10 @@ mod tests {
             ("flag".to_string(), FilterValue::Bool(false)),
         ];
         let (sql, params) = build_filter_clauses(pairs, &allowed(&["name", "feature_id", "flag"]));
-        assert_eq!(sql, "name = $1 AND feature_id = $2 AND flag = $3");
+        assert_eq!(
+            sql,
+            "name = $1 AND feature_id = $2::bigint AND flag = $3::boolean"
+        );
         assert_eq!(params, vec!["n", "7", "false"]);
     }
 
