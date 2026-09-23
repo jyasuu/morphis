@@ -56,7 +56,8 @@ pub(crate) fn add_search_field(
     row_filters: Vec<RowFilterConfig>,
     service: Arc<SearchService>,
 ) -> Object {
-    let idx_cfg = index_cfg.clone();
+    let idx_cfg = Arc::new(index_cfg.clone());
+    let searchable_fields = Arc::new(collect_searchable_fields(index_cfg));
     let type_name = idx_cfg.graphql_type.clone();
     let hit_type_name = format!("{}SearchHit", type_name);
     query = query.field(
@@ -65,6 +66,7 @@ pub(crate) fn add_search_field(
             TypeRef::named_nn_list_nn(&hit_type_name),
             move |ctx| {
                 let idx_cfg = idx_cfg.clone();
+                let searchable_fields = searchable_fields.clone();
                 let row_filters = row_filters.clone();
                 let service = service.clone();
                 FieldFuture::new(async move {
@@ -99,6 +101,7 @@ pub(crate) fn add_search_field(
                     let results = search(
                         &service,
                         &idx_cfg,
+                        &searchable_fields,
                         &query_str,
                         &query_operator,
                         es_query_raw.as_deref(),
@@ -188,6 +191,7 @@ pub(crate) fn build_search_hit_object(index_cfg: &SearchIndexConfig) -> Object {
 pub(crate) async fn search(
     service: &SearchService,
     index_cfg: &SearchIndexConfig,
+    searchable_fields: &[String],
     query_str: &str,
     query_operator: &str,
     es_query_raw: Option<&str>,
@@ -225,7 +229,7 @@ pub(crate) async fn search(
         must.extend(filter_clauses);
         serde_json::json!({ "must": must })
     } else {
-        let all_searchable = collect_searchable_fields(index_cfg);
+        let all_searchable = searchable_fields;
         let mut must_clauses = operator::build_es_filter(filters);
         must_clauses.extend(filter_clauses);
         let mut bool_body = serde_json::json!({ "must": must_clauses });

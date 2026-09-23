@@ -10,11 +10,12 @@ use tokio::sync::Mutex;
 use crate::config::RowFilterConfig;
 use crate::schema::{Identity, db};
 
-/// Cached result of a subquery row filter, keyed by source table + user column
-/// + identity value.
+/// Cached result of a subquery row filter, keyed by source table, user column
+/// and identity value. Stored behind an `Arc` so a cache hit is a cheap
+/// refcount bump instead of a deep `serde_json::Value` clone.
 #[derive(Debug, Clone)]
 struct PermissionCacheEntry {
-    values: Vec<Value>,
+    values: Arc<[Value]>,
     expires_at: Instant,
 }
 
@@ -32,7 +33,7 @@ impl PermissionCache {
         }
     }
 
-    pub(crate) fn get(&self, key: &str) -> Option<Vec<Value>> {
+    pub(crate) fn get(&self, key: &str) -> Option<Arc<[Value]>> {
         self.store.get(key).and_then(|entry| {
             if Instant::now() < entry.expires_at {
                 Some(entry.values.clone())
@@ -42,12 +43,12 @@ impl PermissionCache {
         })
     }
 
-    pub(crate) fn set(&mut self, key: String, values: Vec<Value>, ttl: Duration) {
+    pub(crate) fn set(&mut self, key: String, values: Arc<[Value]>, ttl: Duration) {
         self.store.insert(
             key,
             PermissionCacheEntry {
-                expires_at: Instant::now() + ttl,
                 values,
+                expires_at: Instant::now() + ttl,
             },
         );
     }
@@ -139,22 +140,33 @@ pub(crate) async fn apply_es(
             } => {
                 let cache_key = format!("{}:{}:{}", from_source, user_column, val);
                 let ttl = Duration::from_secs(cache_ttl_secs.unwrap_or(60));
-                let cols: Vec<String> = match_columns.clone();
-                let rows = {
-                    let mut cache = permission_cache.lock().await;
-                    if let Some(cached) = cache.get(&cache_key) {
-                        cached
-                    } else {
-                        let sql = format!(
-                            "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
-                            cols.join(", "),
-                            from_source,
-                            user_column,
-                        );
-                        let result =
-                            db::fetch_rows(pool, &sql, &[db::Bind::Text(val)]).await?;
-                        cache.set(cache_key, result.clone(), ttl);
-                        result
+                let rows: Arc<[Value]> = {
+                    // Fast path: check the cache without holding the lock. Holding
+                    // the global permission lock across the DB round-trip below
+                    // would serialize every concurrent ES search eligibility
+                    // check behind a cache-miss fetch.
+                    let cached = permission_cache.lock().await.get(&cache_key);
+                    match cached {
+                        Some(rows) => rows,
+                        None => {
+                            let cols: Vec<String> = match_columns.clone();
+                            let sql = format!(
+                                "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT DISTINCT {} FROM {} WHERE {} = $1) t",
+                                cols.join(", "),
+                                from_source,
+                                user_column,
+                            );
+                            let result = Arc::<[Value]>::from(
+                                db::fetch_rows(pool, &sql, &[db::Bind::Text(val)]).await?,
+                            );
+                            // Double-checked insert: re-acquire the lock and only
+                            // store if a concurrent miss did not already fill it.
+                            let mut cache = permission_cache.lock().await;
+                            if cache.get(&cache_key).is_none() {
+                                cache.set(cache_key, result.clone(), ttl);
+                            }
+                            result
+                        }
                     }
                 };
                 if rows.is_empty() {
@@ -164,7 +176,7 @@ pub(crate) async fn apply_es(
                     clauses.push(false_clause);
                 } else {
                     let mut should = Vec::new();
-                    for row in &rows {
+                    for row in rows.iter() {
                         let mut must = Vec::new();
                         if let Some(obj) = row.as_object() {
                             for (col_idx, col) in columns.iter().enumerate() {
@@ -302,7 +314,7 @@ mod tests {
         let cache = Arc::new(Mutex::new(PermissionCache::new()));
         cache.lock().await.set(
             "user_permissions:user_id:user-1".into(),
-            vec![serde_json::json!({ "tenant_id": "tenant-a" })],
+            Arc::<[Value]>::from(vec![serde_json::json!({ "tenant_id": "tenant-a" })]),
             Duration::from_secs(60),
         );
 
@@ -332,7 +344,7 @@ mod tests {
         let cache = Arc::new(Mutex::new(PermissionCache::new()));
         cache.lock().await.set(
             "user_permissions:user_id:user-nobody".into(),
-            vec![],
+            Arc::<[Value]>::from(Vec::<Value>::new()),
             Duration::from_secs(60),
         );
 
@@ -348,12 +360,14 @@ mod tests {
     #[test]
     fn cache_hits_within_ttl_and_expires_after() {
         let mut cache = PermissionCache::new();
-        cache.set("k".into(), vec![serde_json::json!({ "x": 1 })], Duration::from_secs(60));
-        assert_eq!(cache.get("k"), Some(vec![serde_json::json!({ "x": 1 })]));
+        let values = Arc::<[Value]>::from(vec![serde_json::json!({ "x": 1 })]);
+        cache.set("k".into(), values.clone(), Duration::from_secs(60));
+        assert_eq!(cache.get("k"), Some(values));
 
         std::thread::sleep(Duration::from_millis(30));
         let mut short = PermissionCache::new();
-        short.set("k".into(), vec![serde_json::json!({ "x": 1 })], Duration::from_millis(5));
+        let values = Arc::<[Value]>::from(vec![serde_json::json!({ "x": 1 })]);
+        short.set("k".into(), values, Duration::from_millis(5));
         std::thread::sleep(Duration::from_millis(30));
         assert_eq!(short.get("k"), None);
     }
