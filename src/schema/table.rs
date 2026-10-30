@@ -9,12 +9,15 @@ use async_graphql::{
     },
 };
 
-use crate::config::{ColumnConfig, ColumnType, Config, RelationType, RowFilterConfig, TableConfig};
+use crate::config::{
+    ColumnConfig, ColumnType, Config, LimitsConfig, RelationType, RowFilterConfig, TableConfig,
+};
 
 use super::db;
 use super::relation::{RelKey, RelSpec, RelationLoader, build_filter_suffix, relation_field_value};
 use super::search::apply_row_filters;
 use super::util::{capitalize_first, gql_val, gql_value_to_sql_string, value_as_string};
+use super::where_filter::{build_where_input, extract_column_ops, compile_where, where_input_name};
 use super::{AppContext, Identity};
 
 /// Everything a single table contributes to the GraphQL schema.
@@ -41,6 +44,7 @@ pub(crate) fn build_table_surface(
 
     let inputs = vec![
         build_filter_input(&name_caps, table_config),
+        build_where_input(&name_caps, table_config),
         build_create_input(&name_caps, table_config),
         build_update_input(&name_caps, table_config),
     ];
@@ -50,7 +54,7 @@ pub(crate) fn build_table_surface(
     let mut query_fields = Vec::new();
     if table_config.crud.read {
         query_fields.push(build_single_query_field(name, table_config, &pk_args));
-        query_fields.push(build_list_query_field(name, table_config));
+        query_fields.push(build_list_query_field(name, table_config, &config.limits));
     }
 
     let mut mutation_fields = Vec::new();
@@ -360,7 +364,7 @@ fn build_single_query_field(
     single_field
 }
 
-fn build_list_query_field(name: &str, table_config: &TableConfig) -> Field {
+fn build_list_query_field(name: &str, table_config: &TableConfig, limits: &LimitsConfig) -> Field {
     let list_name = format!("{}List", name);
     let table_name = table_config.table.clone();
     let col_names: Vec<String> = table_config
@@ -369,6 +373,9 @@ fn build_list_query_field(name: &str, table_config: &TableConfig) -> Field {
         .map(|c| c.name.clone())
         .collect();
     let row_filters = table_config.row_filters.clone();
+    let pk_order = table_config.primary_key.join(", ");
+    let table_cfg = table_config.clone();
+    let limits = limits.clone();
 
     Field::new(
         list_name,
@@ -377,33 +384,56 @@ fn build_list_query_field(name: &str, table_config: &TableConfig) -> Field {
             let table_name = table_name.clone();
             let col_names = col_names.clone();
             let row_filters = row_filters.clone();
+            let pk_order = pk_order.clone();
+            let table_cfg = table_cfg.clone();
+            let limits = limits.clone();
 
             FieldFuture::new(async move {
                 let filter_arg = ctx.args.get("filter");
+                let where_arg = ctx.args.get("where");
                 let order_by = ctx
                     .args
                     .get("order_by")
                     .and_then(|v| v.string().ok().map(String::from));
-                let limit = ctx.args.get("limit").and_then(|v| v.u64().ok());
+                // Every list query is bounded: no `limit` means the configured
+                // default, and anything larger than the ceiling is clamped.
+                let limit = limits
+                    .effective_limit(ctx.args.get("limit").and_then(|v| v.i64().ok()))
+                    .map_err(async_graphql::Error::new)?;
                 let offset = ctx.args.get("offset").and_then(|v| v.u64().ok());
 
                 let mut sql = format!(
                     "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (SELECT * FROM {}",
                     table_name
                 );
-                let mut params = Vec::new();
+                let mut params: Vec<String> = Vec::new();
+                let mut conditions: Vec<String> = Vec::new();
 
                 if let Some(filter) = filter_arg {
                     let (clause, p) = build_filter_sql(filter, &col_names);
                     if !clause.is_empty() {
-                        sql.push_str(&format!(" WHERE {}", clause));
-                        params = p;
+                        conditions.push(clause);
+                        params.extend(p);
                     }
+                }
+                if let Some(where_arg) = where_arg {
+                    let ops = extract_column_ops(where_arg, &table_cfg)
+                        .map_err(async_graphql::Error::new)?;
+                    let (clause, p) = compile_where(&ops, params.len() + 1)
+                        .map_err(async_graphql::Error::new)?;
+                    if !clause.is_empty() {
+                        conditions.push(clause);
+                        params.extend(p);
+                    }
+                }
+                if !conditions.is_empty() {
+                    sql.push_str(&format!(" WHERE {}", conditions.join(" AND ")));
                 }
                 if let Ok(identity) = ctx.data::<Identity>() {
                     apply_row_filters(&mut sql, &mut params, identity, &row_filters);
                 }
 
+                let mut order_applied = false;
                 if let Some(order) = order_by {
                     let sanitized: Vec<String> = order
                         .split(',')
@@ -432,11 +462,15 @@ fn build_list_query_field(name: &str, table_config: &TableConfig) -> Field {
                         .collect();
                     if !sanitized.is_empty() {
                         sql.push_str(&format!(" ORDER BY {}", sanitized.join(", ")));
+                        order_applied = true;
                     }
                 }
-                if let Some(l) = limit {
-                    sql.push_str(&format!(" LIMIT {}", l));
+                // Offset paging is only stable with a total order, so fall back
+                // to the primary key when the caller did not sort.
+                if !order_applied {
+                    sql.push_str(&format!(" ORDER BY {}", pk_order));
                 }
+                sql.push_str(&format!(" LIMIT {}", limit));
                 if let Some(o) = offset {
                     sql.push_str(&format!(" OFFSET {}", o));
                 }
@@ -457,6 +491,10 @@ fn build_list_query_field(name: &str, table_config: &TableConfig) -> Field {
     .argument(InputValue::new(
         "filter",
         TypeRef::named(format!("{}FilterInput", capitalize_first(name))),
+    ))
+    .argument(InputValue::new(
+        "where",
+        TypeRef::named(where_input_name(&capitalize_first(name))),
     ))
     .argument(InputValue::new("order_by", TypeRef::named(TypeRef::STRING)))
     .argument(InputValue::new("limit", TypeRef::named(TypeRef::INT)))

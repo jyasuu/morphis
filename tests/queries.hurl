@@ -154,3 +154,112 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.data.__schema.queryType.name" == "Query"
+
+# ── where operators (SQL) ─────────────────────────────────────
+
+# in + case-insensitive contains, combined with AND
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(where: { mat_no: { in: [\"M001\", \"M002\", \"M003\"] }, name: { contains: \"WOOL\" } }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 1
+jsonpath "$.data.materialsList[0].mat_no" == "M002"
+
+# range comparison on a string column
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(where: { mat_no: { gte: \"M002\", lt: \"M003\" } }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 1
+jsonpath "$.data.materialsList[0].mat_no" == "M002"
+
+# ne + the legacy equality filter still compose
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(filter: { status: \"active\" }, where: { mat_no: { ne: \"M001\" } }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 1
+jsonpath "$.data.materialsList[0].mat_no" == "M002"
+
+# LIKE metacharacters are matched literally ("%" must not match everything)
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(where: { name: { contains: \"%\" } }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.materialsList" count == 0
+
+# integer column comparison
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ sizesList(where: { id: { gte: 1 } }, limit: 2) { id } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.data.sizesList" count == 2
+
+# empty `in` is a clear error, not silent no-op
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(where: { name: { in: [] } }) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.errors[0].message" contains "at least one value"
+
+# ── request guardrails ────────────────────────────────────────
+
+# negative limit is rejected
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(limit: -1) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.errors[0].message" contains "non-negative"
+
+# an oversized limit is clamped, not an error
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materialsList(limit: 1000000) { mat_no } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.errors" not exists
+jsonpath "$.data.materialsList" count >= 3
+
+# nesting beyond limits.max_depth (default 10) is rejected before any SQL runs
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ materials(id: \"M001\") { material_features { feature_attributes { material_feature { material { material_features { feature_attributes { material_feature { material { material_features { name } } } } } } } } } } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.errors[0].message" contains "nested too deep"
+
+# introspection is exempt from the depth limit (full standard shape, 7-level ofType)
+POST http://localhost:4000/graphql
+Content-Type: application/json
+{
+  "query": "{ __schema { types { name fields { name type { kind ofType { kind ofType { kind ofType { kind ofType { kind ofType { kind ofType { kind name } } } } } } } } } } }"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.errors" not exists
+jsonpath "$.data.__schema.types" count > 10

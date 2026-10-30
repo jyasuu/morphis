@@ -16,6 +16,68 @@ pub struct Config {
     pub auth: Option<AuthConfig>,
     #[serde(default)]
     pub circuit_breakers: CircuitBreakersConfig,
+    #[serde(default)]
+    pub limits: LimitsConfig,
+}
+
+/// Request guardrails for the GraphQL surface. Every field has a default, so
+/// existing configs keep working; the defaults are deliberately conservative
+/// but well above what the bundled frontend asks for (it always sends a limit
+/// of at most 200).
+#[derive(Debug, Clone, Deserialize)]
+pub struct LimitsConfig {
+    /// Maximum selection-set nesting depth (introspection is exempt).
+    #[serde(default = "default_max_depth")]
+    pub max_depth: usize,
+    /// Maximum query complexity (each selected field costs 1).
+    #[serde(default = "default_max_complexity")]
+    pub max_complexity: usize,
+    /// Rows returned by a list query when the caller passes no `limit`.
+    #[serde(default = "default_default_limit")]
+    pub default_limit: u64,
+    /// Hard ceiling for any caller-supplied `limit` (list and search).
+    #[serde(default = "default_max_limit")]
+    pub max_limit: u64,
+}
+
+fn default_max_depth() -> usize {
+    10
+}
+
+fn default_max_complexity() -> usize {
+    1000
+}
+
+fn default_default_limit() -> u64 {
+    100
+}
+
+fn default_max_limit() -> u64 {
+    1000
+}
+
+impl Default for LimitsConfig {
+    fn default() -> Self {
+        Self {
+            max_depth: default_max_depth(),
+            max_complexity: default_max_complexity(),
+            default_limit: default_default_limit(),
+            max_limit: default_max_limit(),
+        }
+    }
+}
+
+impl LimitsConfig {
+    /// Resolve the row cap for a request. `None` means the caller sent no
+    /// `limit`, so the default applies; anything above `max_limit` is clamped
+    /// rather than rejected so existing clients degrade gracefully.
+    pub fn effective_limit(&self, requested: Option<i64>) -> Result<u64, String> {
+        match requested {
+            None => Ok(self.default_limit.min(self.max_limit)),
+            Some(n) if n < 0 => Err("limit must be non-negative".to_string()),
+            Some(n) => Ok((n as u64).min(self.max_limit)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -384,7 +446,22 @@ impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: Config = serde_yaml::from_str(&content)?;
+        config.validate()?;
         Ok(config)
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        let l = &self.limits;
+        anyhow::ensure!(l.max_depth >= 1, "limits.max_depth must be at least 1");
+        anyhow::ensure!(l.max_complexity >= 1, "limits.max_complexity must be at least 1");
+        anyhow::ensure!(l.max_limit >= 1, "limits.max_limit must be at least 1");
+        anyhow::ensure!(
+            l.default_limit <= l.max_limit,
+            "limits.default_limit ({}) must not exceed limits.max_limit ({})",
+            l.default_limit,
+            l.max_limit
+        );
+        Ok(())
     }
 }
 
@@ -773,5 +850,62 @@ tables:
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         let table = config.tables.get("t").unwrap();
         assert_eq!(table.primary_key.len(), 2);
+    }
+
+    #[test]
+    fn limits_default_when_section_absent() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server: {}
+tables: {}
+"#;
+        let cfg: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(cfg.limits.max_depth, 10);
+        assert_eq!(cfg.limits.default_limit, 100);
+        assert_eq!(cfg.limits.max_limit, 1000);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn limits_partial_override_keeps_other_defaults() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server: {}
+tables: {}
+limits:
+  max_limit: 50
+  default_limit: 20
+"#;
+        let cfg: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(cfg.limits.max_limit, 50);
+        assert_eq!(cfg.limits.max_depth, 10);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn limits_reject_default_above_max() {
+        let yaml = r#"
+database:
+  url: "postgres://localhost/test"
+server: {}
+tables: {}
+limits:
+  max_limit: 10
+  default_limit: 20
+"#;
+        let cfg: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn effective_limit_defaults_clamps_and_rejects_negative() {
+        let l = LimitsConfig::default();
+        assert_eq!(l.effective_limit(None), Ok(100));
+        assert_eq!(l.effective_limit(Some(0)), Ok(0));
+        assert_eq!(l.effective_limit(Some(200)), Ok(200));
+        assert_eq!(l.effective_limit(Some(1_000_000)), Ok(1000));
+        assert!(l.effective_limit(Some(-1)).is_err());
     }
 }

@@ -82,6 +82,8 @@ The paginated search improvement (16x) is because ES offset scanning + per-item 
 
 ## Key Takeaways
 
+> **Update (Oct 30, 2026):** relation resolvers now go through a batched `DataLoader` (`RelationLoader`), so the `has_many` / deep-nesting rows and the N+1 takeaway below describe the code *before* that change and should be re-measured with `benchmark/`. Statement counts, checked against Postgres' statement log: `materialsList(limit: N) { sizes colorways }` issues 3 SQL statements for N = 50 and for N = 200 (one for the list, one per relation level).
+
 - **PK lookups** are ~0.7ms median, >1,100 req/s — the `row_to_json` + single-row path is efficient
 - **Flat list queries** do ~700 req/s at ~1.4ms
 - **Adding one has_many join** (sizes) drops to 65 req/s / 15ms — the N+1 pattern from `async-graphql` per-parent resolution is the bottleneck

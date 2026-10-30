@@ -17,7 +17,7 @@ use sqlx::{Pool, Postgres};
 
 use identity_auth::circuit_breaker::CircuitBreaker;
 
-use crate::config::{Config, RowFilterConfig, SearchIndexConfig, SearchJoinConfig};
+use crate::config::{Config, LimitsConfig, RowFilterConfig, SearchIndexConfig, SearchJoinConfig};
 
 use super::db;
 use super::util::{capitalize_first, gql_val};
@@ -55,6 +55,7 @@ pub(crate) fn add_search_field(
     index_cfg: &SearchIndexConfig,
     row_filters: Vec<RowFilterConfig>,
     service: Arc<SearchService>,
+    limits: LimitsConfig,
 ) -> Object {
     let idx_cfg = Arc::new(index_cfg.clone());
     let searchable_fields = Arc::new(collect_searchable_fields(index_cfg));
@@ -69,6 +70,7 @@ pub(crate) fn add_search_field(
                 let searchable_fields = searchable_fields.clone();
                 let row_filters = row_filters.clone();
                 let service = service.clone();
+                let limits = limits.clone();
                 FieldFuture::new(async move {
                     let query_str = ctx
                         .args
@@ -85,12 +87,14 @@ pub(crate) fn add_search_field(
                         .get("esQuery")
                         .and_then(|v| v.string().ok().map(String::from));
                     let filter = ctx.args.get("filter");
+                    // Search keeps its historical default of 50 but, like list
+                    // queries, can never exceed the configured ceiling.
                     let limit = ctx
                         .args
                         .get("limit")
                         .and_then(|v| v.u64().ok())
-                        .map(|n| n as usize)
-                        .unwrap_or(50);
+                        .unwrap_or(50)
+                        .min(limits.max_limit) as usize;
                     let offset = ctx
                         .args
                         .get("offset")

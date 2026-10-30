@@ -5,6 +5,13 @@ database:
 elasticsearch:
   url: "http://elastic:morphis_es_pass@es:9200"
 
+# Request guardrails (all optional; these are the defaults).
+limits:
+  max_depth: 10        # nested fields per query; introspection is exempt
+  max_complexity: 1000 # selected fields per query
+  default_limit: 100   # rows returned by a list query when `limit` is omitted
+  max_limit: 1000      # ceiling for any `limit` (list and search); larger values are clamped
+
 server:
   host: "0.0.0.0"
   port: 4000
